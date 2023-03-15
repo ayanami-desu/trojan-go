@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/xtaci/smux"
+	"github.com/ayanami-desu/smux"
 
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
@@ -47,7 +47,7 @@ func (c *Client) Close() error {
 		info.client.Close()
 		log.Debug("mux client", id, "closed")
 	}
-	return nil
+	return c.underlay.Close()
 }
 
 func (c *Client) cleanLoop() {
@@ -103,18 +103,18 @@ func (c *Client) newMuxClient() (*smuxClientInfo, error) {
 		return nil, common.NewError("duplicated id")
 	}
 
-	fakeAddr := &tunnel.Address{
-		DomainName:  "MUX_CONN",
-		AddressType: tunnel.DomainName,
-	}
-	conn, err := c.underlay.DialConn(fakeAddr, &Tunnel{})
+	//fakeAddr := &tunnel.Address{
+	//	DomainName:  "MUX_CONN",
+	//	AddressType: tunnel.DomainName,
+	//}
+	conn, err := c.underlay.DialConn(nil, nil)
 	if err != nil {
 		return nil, common.NewError("mux failed to dial").Base(err)
 	}
 	conn = newStickyConn(conn)
 
 	smuxConfig := smux.DefaultConfig()
-	// smuxConfig.KeepAliveDisabled = true
+	smuxConfig.KeepAliveDisabled = true
 	client, _ := smux.Client(conn, smuxConfig)
 	info := &smuxClientInfo{
 		client:         client,
@@ -131,14 +131,15 @@ func (c *Client) DialConn(*tunnel.Address, tunnel.Tunnel) (tunnel.Conn, error) {
 		rwc, err := info.client.Open()
 		info.lastActiveTime = time.Now()
 		if err != nil {
-			info.underlayConn.Close()
 			info.client.Close()
+			info.underlayConn.Close()
 			delete(c.clientPool, info.id)
 			return nil, common.NewError("mux failed to open stream from client").Base(err)
 		}
 		return &Conn{
-			rwc:  rwc,
-			Conn: info.underlayConn,
+			rwc: rwc,
+			//Conn: info.underlayConn,
+			//这里填底层连接有什么用？
 		}, nil
 	}
 

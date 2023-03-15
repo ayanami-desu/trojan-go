@@ -3,7 +3,7 @@ package mux
 import (
 	"context"
 
-	"github.com/xtaci/smux"
+	"github.com/ayanami-desu/smux"
 
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/log"
@@ -32,15 +32,15 @@ func (s *Server) acceptConnWorker() {
 		}
 		go func(conn tunnel.Conn) {
 			smuxConfig := smux.DefaultConfig()
-			// smuxConfig.KeepAliveDisabled = true
+			smuxConfig.KeepAliveDisabled = true
 			smuxSession, err := smux.Server(conn, smuxConfig)
 			if err != nil {
 				log.Error(err)
 				return
 			}
 			go func(session *smux.Session, conn tunnel.Conn) {
-				defer session.Close()
 				defer conn.Close()
+				defer session.Close()
 				for {
 					stream, err := session.AcceptStream()
 					if err != nil {
@@ -49,8 +49,8 @@ func (s *Server) acceptConnWorker() {
 					}
 					select {
 					case s.connChan <- &Conn{
-						rwc:  stream,
-						Conn: conn,
+						rwc: stream,
+						//Conn: conn,
 					}:
 					case <-s.ctx.Done():
 						log.Debug("exiting")

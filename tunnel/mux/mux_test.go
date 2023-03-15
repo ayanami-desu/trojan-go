@@ -14,7 +14,6 @@ import (
 func TestMux(t *testing.T) {
 	muxCfg := &Config{
 		Mux: MuxConfig{
-			Enabled:     true,
 			Concurrency: 8,
 			IdleTimeout: 60,
 		},

@@ -1,11 +1,11 @@
-package tls
+package ssh
 
 import (
 	"context"
 	"github.com/p4gefau1t/trojan-go/tunnel"
 )
 
-const Name = "TLS"
+const Name = "SSH"
 
 type Tunnel struct{}
 
