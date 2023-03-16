@@ -119,13 +119,13 @@ func (s *Server) packetDispatchLoop() {
 		if err != nil {
 			select {
 			case <-s.ctx.Done():
-				log.Debug("exiting")
+				log.Debugf("exiting")
 				return
 			default:
 				continue
 			}
 		}
-		log.Debug("socks recv udp packet from", src)
+		log.Debugf("socks recv udp packet from %v", src)
 		s.mappingLock.RLock()
 		conn, found := s.mapping[src.String()]
 		s.mappingLock.RUnlock()
@@ -150,18 +150,18 @@ func (s *Server) packetDispatchLoop() {
 						buf.Write(info.payload)
 						_, err := s.listenPacketConn.WriteTo(buf.Bytes(), conn.src)
 						if err != nil {
-							log.Error("socks failed to respond packet to", src)
+							log.Errorf("socks failed to respond packet to %v", src)
 							return
 						}
-						log.Debug("socks respond udp packet to", src, "metadata", info.metadata)
+						log.Debugf("socks respond udp packet to %v metadata", info.metadata)
 					case <-time.After(time.Second * 5):
-						log.Info("socks udp session timeout, closed")
+						log.Infof("socks udp session timeout, closed")
 						s.mappingLock.Lock()
 						delete(s.mapping, src.String())
 						s.mappingLock.Unlock()
 						return
 					case <-conn.ctx.Done():
-						log.Info("socks udp session closed")
+						log.Infof("socks udp session closed")
 						return
 					}
 				}
@@ -172,12 +172,12 @@ func (s *Server) packetDispatchLoop() {
 			s.mappingLock.Unlock()
 
 			s.packetChan <- conn
-			log.Info("socks new udp session from", src)
+			log.Infof("socks new udp session from %v", src)
 		}
 		r := bytes.NewBuffer(buf[3:n])
 		address := new(tunnel.Address)
 		if err := address.ReadFrom(r); err != nil {
-			log.Error(common.NewError("socks failed to parse incoming packet").Base(err))
+			log.Errorf(common.NewError("socks failed to parse incoming packet").Base(err).Error())
 			continue
 		}
 		payload := make([]byte, MaxPacketSize)
@@ -190,7 +190,7 @@ func (s *Server) packetDispatchLoop() {
 			payload: payload[:length],
 		}:
 		default:
-			log.Warn("socks udp queue full")
+			log.Warnf("socks udp queue full")
 		}
 	}
 }
@@ -199,20 +199,20 @@ func (s *Server) acceptLoop() {
 	for {
 		conn, err := s.underlay.AcceptConn(&Tunnel{})
 		if err != nil {
-			log.Error(common.NewError("socks accept err").Base(err))
+			log.Errorf(common.NewError("socks accept err").Base(err).Error())
 			return
 		}
 		go func(conn net.Conn) {
 			newConn, err := s.handshake(conn)
 			if err != nil {
-				log.Error(common.NewError("socks failed to handshake with client").Base(err))
+				log.Errorf(common.NewError("socks failed to handshake with client").Base(err).Error())
 				return
 			}
-			log.Info("socks connection from", conn.RemoteAddr(), "metadata", newConn.metadata.String())
+			log.Infof("socks connection from %v metadata %v", conn.RemoteAddr(), newConn.metadata.String())
 			switch newConn.metadata.Command {
 			case Connect:
 				if err := s.connect(newConn); err != nil {
-					log.Error(common.NewError("socks failed to respond CONNECT").Base(err))
+					log.Errorf(common.NewError("socks failed to respond CONNECT").Base(err).Error())
 					newConn.Close()
 					return
 				}
@@ -222,14 +222,14 @@ func (s *Server) acceptLoop() {
 				defer newConn.Close()
 				associateAddr := tunnel.NewAddressFromHostPort("udp", s.localHost, s.localPort)
 				if err := s.associate(newConn, associateAddr); err != nil {
-					log.Error(common.NewError("socks failed to respond to associate request").Base(err))
+					log.Errorf(common.NewError("socks failed to respond to associate request").Base(err).Error())
 					return
 				}
 				buf := [16]byte{}
 				newConn.Read(buf[:])
-				log.Debug("socks udp session ends")
+				log.Debugf("socks udp session ends")
 			default:
-				log.Error(common.NewError(fmt.Sprintf("unknown socks command %d", newConn.metadata.Command)))
+				log.Errorf(common.NewError(fmt.Sprintf("unknown socks command %d", newConn.metadata.Command)).Error())
 				newConn.Close()
 			}
 		}(conn)
@@ -258,6 +258,6 @@ func NewServer(ctx context.Context, underlay tunnel.Server) (tunnel.Server, erro
 	}
 	go server.acceptLoop()
 	go server.packetDispatchLoop()
-	log.Debug("socks server created")
+	log.Debugf("socks server created")
 	return server, nil
 }
