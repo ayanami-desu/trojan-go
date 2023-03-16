@@ -2,7 +2,6 @@ package multiplex
 
 import (
 	"errors"
-	"io"
 	"math/rand"
 	"net"
 	"sync"
@@ -145,9 +144,6 @@ func (sb *switchboard) deplex(conn net.Conn) {
 	for {
 		n, err := conn.Read(buf)
 		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return
-			}
 			log.Debugf("a connection for session %v has closed: %v", sb.session.id, err)
 			sb.session.SetTerminalMsg("a connection has dropped unexpectedly")
 			sb.session.passiveClose()

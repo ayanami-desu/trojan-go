@@ -52,9 +52,10 @@ func (s *Server) acceptConnWorker() {
 func (s *Server) acceptStream(sess *Session) {
 	for {
 		stream, err := sess.Accept()
+		//只会返回会话已关闭的错误
 		if err != nil {
 			if err == ErrBrokenSession {
-				log.Trace("会话已关闭")
+				log.Infof("会话 %d 已关闭", sess.id)
 				return
 			} else {
 				log.Error(err)

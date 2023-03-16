@@ -189,7 +189,6 @@ func (s *Conn) writeChunk(b []byte) (n int, err error) {
 				if err != nil {
 					log.Fatalf("创建写加密块失败: %w", err)
 				}
-				//return 0, fmt.Errorf("recv cipher is nil")
 			}
 		}
 	}
