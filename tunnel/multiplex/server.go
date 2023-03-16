@@ -4,9 +4,9 @@ import (
 	"context"
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
-	"github.com/p4gefau1t/trojan-go/log"
 	"github.com/p4gefau1t/trojan-go/tunnel"
 	"github.com/p4gefau1t/trojan-go/tunnel/ssh"
+	log "github.com/sirupsen/logrus"
 	"time"
 )
 
@@ -52,14 +52,13 @@ func (s *Server) acceptConnWorker() {
 func (s *Server) acceptStream(sess *Session) {
 	for {
 		stream, err := sess.Accept()
-		//只会返回会话已关闭的错误
+		//这里只会返回会话已关闭的错误
 		if err != nil {
 			if err == ErrBrokenSession {
 				log.Infof("会话 %d 已关闭", sess.id)
 				return
 			} else {
 				log.Error(err)
-				//continue
 				return
 			}
 		}
@@ -111,6 +110,6 @@ func NewServer(ctx context.Context, underlay tunnel.Server) (*Server, error) {
 	}
 	server.sessConfig.InactivityTimeout = time.Duration(cfg.Multi.StreamTimeout) * time.Second
 	go server.acceptConnWorker()
-	log.Debug("multiplex server created")
+	log.Debugf("multiplex server created")
 	return server, nil
 }

@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/p4gefau1t/trojan-go/log"
+	log "github.com/sirupsen/logrus"
 )
 
 type switchboardStrategy int

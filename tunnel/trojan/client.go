@@ -11,11 +11,11 @@ import (
 	"github.com/p4gefau1t/trojan-go/api"
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
-	"github.com/p4gefau1t/trojan-go/log"
 	"github.com/p4gefau1t/trojan-go/statistic"
 	"github.com/p4gefau1t/trojan-go/statistic/memory"
 	"github.com/p4gefau1t/trojan-go/tunnel"
 	"github.com/p4gefau1t/trojan-go/tunnel/mux"
+	log "github.com/sirupsen/logrus"
 )
 
 const (

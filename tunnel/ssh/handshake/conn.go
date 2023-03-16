@@ -5,8 +5,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/p4gefau1t/trojan-go/log"
 	"github.com/p4gefau1t/trojan-go/tunnel/ssh/cipher"
+	log "github.com/sirupsen/logrus"
 	"io"
 	"net"
 	"sync"
@@ -184,7 +184,7 @@ func (s *Conn) writeChunk(b []byte) (n int, err error) {
 				s.send.SetImplicitNonceMode(true)
 			} else {
 				//TODO 为什么服务端侧会先写？
-				log.Warn("收发加密块均为空")
+				log.Warnf("收发加密块均为空")
 				s.send, err = cipher.NewAESGCMBlockCipher(s.SharedKey)
 				if err != nil {
 					log.Fatalf("创建写加密块失败: %w", err)

@@ -11,8 +11,8 @@ import (
 
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
-	"github.com/p4gefau1t/trojan-go/log"
 	"github.com/p4gefau1t/trojan-go/tunnel"
+	log "github.com/sirupsen/logrus"
 )
 
 type muxID uint32
@@ -179,6 +179,6 @@ func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
 		clientPool:  make(map[muxID]*smuxClientInfo),
 	}
 	go client.cleanLoop()
-	log.Debug("mux client created")
+	log.Debugf("mux client created")
 	return client, nil
 }

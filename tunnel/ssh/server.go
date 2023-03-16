@@ -4,9 +4,9 @@ import (
 	"context"
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
-	"github.com/p4gefau1t/trojan-go/log"
 	"github.com/p4gefau1t/trojan-go/tunnel"
 	"github.com/p4gefau1t/trojan-go/tunnel/ssh/handshake"
+	log "github.com/sirupsen/logrus"
 	"net"
 )
 
@@ -80,6 +80,6 @@ func NewServer(ctx context.Context, underlay tunnel.Server) (*Server, error) {
 		cancel:   cancel,
 	}
 	go server.acceptLoop()
-	log.Debug("ssh server created")
+	log.Debugf("ssh server created")
 	return server, nil
 }

@@ -2,7 +2,7 @@ package multiplex
 
 import (
 	"crypto/rand"
-	"github.com/p4gefau1t/trojan-go/log"
+	log "github.com/sirupsen/logrus"
 	"io"
 	"time"
 )

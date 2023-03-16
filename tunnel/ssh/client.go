@@ -4,9 +4,9 @@ import (
 	"context"
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
-	"github.com/p4gefau1t/trojan-go/log"
 	"github.com/p4gefau1t/trojan-go/tunnel"
 	"github.com/p4gefau1t/trojan-go/tunnel/ssh/handshake"
+	log "github.com/sirupsen/logrus"
 )
 
 type Client struct {
@@ -25,7 +25,7 @@ func (c *Client) ReceiveSessionId(id []byte) {
 	if len(id) == 4 {
 		c.sessionId = id
 	} else {
-		log.Fatal("half sessionId should be 4 bytes")
+		log.Fatalf("half sessionId should be 4 bytes")
 	}
 }
 func (c *Client) DialPacket(tunnel.Tunnel) (tunnel.PacketConn, error) {
@@ -69,6 +69,6 @@ func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
 		ctx:      ctx,
 		cancel:   cancel,
 	}
-	log.Debug("ssh client created")
+	log.Debugf("ssh client created")
 	return client, nil
 }

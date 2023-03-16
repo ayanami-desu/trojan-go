@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"github.com/p4gefau1t/trojan-go/common"
-	"github.com/p4gefau1t/trojan-go/log"
 	"github.com/p4gefau1t/trojan-go/tunnel"
 	"github.com/p4gefau1t/trojan-go/tunnel/trojan"
+	log "github.com/sirupsen/logrus"
 )
 
 // Server is a simplesocks server
@@ -28,7 +28,7 @@ func (s *Server) acceptLoop() {
 	for {
 		conn, err := s.underlay.AcceptConn(&Tunnel{})
 		if err != nil {
-			log.Error(common.NewError("simplesocks failed to accept connection from underlying tunnel").Base(err))
+			log.Errorf(common.NewError("simplesocks failed to accept connection from underlying tunnel").Base(err).Error())
 			select {
 			case <-s.ctx.Done():
 				return
@@ -38,7 +38,7 @@ func (s *Server) acceptLoop() {
 		}
 		metadata := new(tunnel.Metadata)
 		if err := metadata.ReadFrom(conn); err != nil {
-			log.Error(common.NewError("simplesocks server faield to read header").Base(err))
+			log.Errorf(common.NewError("simplesocks server faield to read header").Base(err).Error())
 			conn.Close()
 			continue
 		}
@@ -55,7 +55,7 @@ func (s *Server) acceptLoop() {
 				},
 			}
 		default:
-			log.Error(common.NewError(fmt.Sprintf("simplesocks unknown command %d", metadata.Command)))
+			log.Errorf(common.NewError(fmt.Sprintf("simplesocks unknown command %d", metadata.Command)).Error())
 			conn.Close()
 		}
 	}
@@ -89,6 +89,6 @@ func NewServer(ctx context.Context, underlay tunnel.Server) (*Server, error) {
 		cancel:     cancel,
 	}
 	go server.acceptLoop()
-	log.Debug("simplesocks server created")
+	log.Debugf("simplesocks server created")
 	return server, nil
 }

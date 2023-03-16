@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	"github.com/p4gefau1t/trojan-go/common"
-	"github.com/p4gefau1t/trojan-go/log"
 	"github.com/p4gefau1t/trojan-go/tunnel"
+	log "github.com/sirupsen/logrus"
 )
 
 type ConnectConn struct {

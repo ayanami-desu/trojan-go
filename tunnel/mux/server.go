@@ -6,8 +6,8 @@ import (
 	"github.com/ayanami-desu/smux"
 
 	"github.com/p4gefau1t/trojan-go/common"
-	"github.com/p4gefau1t/trojan-go/log"
 	"github.com/p4gefau1t/trojan-go/tunnel"
+	log "github.com/sirupsen/logrus"
 )
 
 // Server is a smux server
@@ -89,6 +89,6 @@ func NewServer(ctx context.Context, underlay tunnel.Server) (*Server, error) {
 		connChan: make(chan tunnel.Conn, 32),
 	}
 	go server.acceptConnWorker()
-	log.Debug("mux server created")
+	log.Debugf("mux server created")
 	return server, nil
 }

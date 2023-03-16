@@ -8,7 +8,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/p4gefau1t/trojan-go/common"
-	"github.com/p4gefau1t/trojan-go/log"
+	log "github.com/sirupsen/logrus"
 )
 
 type geoipCache map[string]*v2router.GeoIP

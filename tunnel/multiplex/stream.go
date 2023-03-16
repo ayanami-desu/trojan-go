@@ -9,10 +9,10 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/p4gefau1t/trojan-go/log"
+	log "github.com/sirupsen/logrus"
 )
 
-var ErrBrokenStream = errors.New("broken stream")
+var ErrBrokenStream = io.EOF // errors.New("broken stream")
 
 // Stream implements net.Conn. It represents an optionally-ordered, full-duplex, self-contained connection.
 // If the session it belongs to runs in ordered mode, it provides ordering guarantee regardless of the underlying

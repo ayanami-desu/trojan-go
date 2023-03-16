@@ -3,7 +3,7 @@ package multiplex
 import (
 	"errors"
 	"fmt"
-	"github.com/p4gefau1t/trojan-go/log"
+	log "github.com/sirupsen/logrus"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -12,7 +12,7 @@ import (
 
 const (
 	acceptBacklog            = 1024
-	defaultInactivityTimeout = 300 * time.Second
+	defaultInactivityTimeout = 30 * time.Second
 	defaultMaxOnWireSize     = 1<<14 + 256 // https://tools.ietf.org/html/rfc8446#section-5.2
 )
 

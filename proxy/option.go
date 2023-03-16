@@ -11,8 +11,8 @@ import (
 
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/constant"
-	"github.com/p4gefau1t/trojan-go/log"
 	"github.com/p4gefau1t/trojan-go/option"
+	log "github.com/sirupsen/logrus"
 )
 
 type Option struct {

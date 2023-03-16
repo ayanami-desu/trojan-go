@@ -3,7 +3,7 @@ package fingerprint
 import (
 	"crypto/tls"
 
-	"github.com/p4gefau1t/trojan-go/log"
+	log "github.com/sirupsen/logrus"
 )
 
 func ParseCipher(s []string) []uint16 {

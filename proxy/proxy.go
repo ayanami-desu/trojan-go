@@ -9,8 +9,8 @@ import (
 
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
-	"github.com/p4gefau1t/trojan-go/log"
 	"github.com/p4gefau1t/trojan-go/tunnel"
+	log "github.com/sirupsen/logrus"
 )
 
 const Name = "PROXY"
@@ -190,13 +190,13 @@ func NewProxyFromConfigData(data []byte, isJSON bool) (*Proxy, error) {
 	if !ok {
 		return nil, common.NewError("unknown proxy type: " + cfg.RunType)
 	}
-	log.SetLogLevel(log.LogLevel(cfg.LogLevel))
+	SetLogLevel(cfg.LogLevel)
 	if cfg.LogFile != "" {
 		file, err := os.OpenFile(cfg.LogFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 		if err != nil {
 			return nil, common.NewError("failed to open log file").Base(err)
 		}
-		log.SetOutput(file)
+		SetOutput(file)
 	}
 	return create(ctx)
 }

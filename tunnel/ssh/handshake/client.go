@@ -5,7 +5,7 @@ import (
 	"crypto/ed25519"
 	"encoding/binary"
 	"fmt"
-	"github.com/p4gefau1t/trojan-go/log"
+	log "github.com/sirupsen/logrus"
 	"io"
 	"net"
 	"time"

@@ -5,9 +5,9 @@ import (
 	"crypto/rand"
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
-	"github.com/p4gefau1t/trojan-go/log"
 	"github.com/p4gefau1t/trojan-go/tunnel"
 	"github.com/p4gefau1t/trojan-go/tunnel/ssh"
+	log "github.com/sirupsen/logrus"
 	"io"
 	"time"
 )
@@ -100,6 +100,6 @@ func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
 		client.sessConfig.Singleplex = false
 	}
 	client.sessConfig.InactivityTimeout = time.Duration(cfg.Multi.StreamTimeout) * time.Second
-	log.Debug("multiplex client created")
+	log.Debugf("multiplex client created")
 	return client, nil
 }

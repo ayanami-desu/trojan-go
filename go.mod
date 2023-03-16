@@ -1,12 +1,13 @@
 module github.com/p4gefau1t/trojan-go
 
-go 1.17
+go 1.19
 
 require (
 	github.com/ayanami-desu/smux v0.0.0-20230315121539-62ee07d62f07
 	github.com/go-sql-driver/mysql v1.7.0
 	github.com/refraction-networking/utls v1.3.0
 	github.com/shadowsocks/go-shadowsocks2 v0.1.5
+	github.com/sirupsen/logrus v1.9.0
 	github.com/smartystreets/goconvey v1.6.4
 	github.com/stretchr/testify v1.7.0
 	github.com/txthinking/socks5 v0.0.0-20230307062227-0e1677eca4ba

@@ -7,9 +7,9 @@ import (
 	"strconv"
 
 	"github.com/p4gefau1t/trojan-go/common"
-	"github.com/p4gefau1t/trojan-go/log"
 	"github.com/p4gefau1t/trojan-go/option"
 	"github.com/p4gefau1t/trojan-go/proxy"
+	log "github.com/sirupsen/logrus"
 )
 
 type easy struct {

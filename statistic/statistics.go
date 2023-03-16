@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/p4gefau1t/trojan-go/common"
-	"github.com/p4gefau1t/trojan-go/log"
+	log "github.com/sirupsen/logrus"
 )
 
 type TrafficMeter interface {
