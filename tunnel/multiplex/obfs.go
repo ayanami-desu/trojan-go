@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-const frameHeaderLength = 14
+const frameHeaderLength = 13
 
 // obfuscate adds multiplexing headers, and add TLS header
 func obfuscate(f *Frame, buf []byte, payloadOffsetInBuf int) (int, error) {
@@ -30,7 +30,6 @@ func obfuscate(f *Frame, buf []byte, payloadOffsetInBuf int) (int, error) {
 	binary.BigEndian.PutUint32(header[0:4], f.StreamID)
 	binary.BigEndian.PutUint64(header[4:12], f.Seq)
 	header[12] = f.Closing
-	header[13] = 0
 
 	return usefulLen, nil
 }
@@ -47,9 +46,8 @@ func deobfuscate(f *Frame, in []byte) error {
 	streamID := binary.BigEndian.Uint32(header[0:4])
 	seq := binary.BigEndian.Uint64(header[4:12])
 	closing := header[12]
-	extraLen := header[13]
 
-	usefulPayloadLen := len(pldWithOverHead) - int(extraLen)
+	usefulPayloadLen := len(pldWithOverHead) //- int(extraLen)
 	if usefulPayloadLen < 0 || usefulPayloadLen > len(pldWithOverHead) {
 		return errors.New("extra length is negative or extra length is greater than total pldWithOverHead length")
 	}
