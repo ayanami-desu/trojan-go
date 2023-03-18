@@ -2,7 +2,6 @@ package mux
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -25,6 +24,7 @@ type smuxClientInfo struct {
 	id             muxID
 	client         *smux.Session
 	lastActiveTime time.Time
+	createdTime    time.Time
 	underlayConn   tunnel.Conn
 }
 
@@ -35,6 +35,7 @@ type Client struct {
 	underlay       tunnel.Client
 	concurrency    int
 	timeout        time.Duration
+	maxConnTime    time.Duration
 	ctx            context.Context
 	cancel         context.CancelFunc
 }
@@ -76,9 +77,9 @@ func (c *Client) cleanLoop() {
 					log.Info("mux client", id, "is closed due to inactivity")
 				}
 			}
-			log.Debug("current mux clients: ", len(c.clientPool))
+			log.Debugf("current mux clients: %d", len(c.clientPool))
 			for id, info := range c.clientPool {
-				log.Debug(fmt.Sprintf("  - %x: %d/%d", id, info.client.NumStreams(), c.concurrency))
+				log.Debugf("  - %x: %d/%d", id, info.client.NumStreams(), c.concurrency)
 			}
 			c.clientPoolLock.Unlock()
 		case <-c.ctx.Done():
@@ -121,6 +122,7 @@ func (c *Client) newMuxClient() (*smuxClientInfo, error) {
 		underlayConn:   conn,
 		id:             id,
 		lastActiveTime: time.Now(),
+		createdTime:    time.Now(),
 	}
 	c.clientPool[id] = info
 	return info, nil
@@ -148,10 +150,15 @@ func (c *Client) DialConn(*tunnel.Address, tunnel.Tunnel) (tunnel.Conn, error) {
 	for _, info := range c.clientPool {
 		if info.client.IsClosed() {
 			delete(c.clientPool, info.id)
-			log.Info(fmt.Sprintf("Mux client %x is closed", info.id))
+			log.Infof("Mux client %x is closed", info.id)
 			continue
 		}
-		if info.client.NumStreams() < c.concurrency || c.concurrency <= 0 {
+		if time.Since(info.createdTime) > c.maxConnTime {
+			delete(c.clientPool, info.id)
+			log.Tracef("delete mux client %x due to live to long", info.id)
+			continue
+		}
+		if info.client.NumStreams() < c.concurrency {
 			return createNewConn(info)
 		}
 	}
@@ -170,15 +177,19 @@ func (c *Client) DialPacket(tunnel.Tunnel) (tunnel.PacketConn, error) {
 func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
 	clientConfig := config.FromContext(ctx, Name).(*Config)
 	ctx, cancel := context.WithCancel(ctx)
+	if clientConfig.Mux.Concurrency <= 0 {
+		log.Fatal("concurrency can not be minus")
+	}
 	client := &Client{
 		underlay:    underlay,
 		concurrency: clientConfig.Mux.Concurrency,
 		timeout:     time.Duration(clientConfig.Mux.IdleTimeout) * time.Second,
+		maxConnTime: time.Duration(clientConfig.Mux.MaxConnTime) * time.Second,
 		ctx:         ctx,
 		cancel:      cancel,
 		clientPool:  make(map[muxID]*smuxClientInfo),
 	}
-	go client.cleanLoop()
+	//go client.cleanLoop()
 	log.Debugf("mux client created")
 	return client, nil
 }
