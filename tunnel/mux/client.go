@@ -112,7 +112,7 @@ func (c *Client) newMuxClient() (*smuxClientInfo, error) {
 	if err != nil {
 		return nil, common.NewError("mux failed to dial").Base(err)
 	}
-	conn = newStickyConn(conn)
+	//conn = newStickyConn(conn)
 
 	smuxConfig := smux.DefaultConfig()
 	smuxConfig.KeepAliveDisabled = true

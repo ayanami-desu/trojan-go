@@ -15,7 +15,6 @@ type switchboardStrategy int
 
 const (
 	fixedConnMapping switchboardStrategy = iota
-	uniformSpread
 )
 
 // switchboard represents the connection pool. It is responsible for managing

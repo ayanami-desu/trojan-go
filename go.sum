@@ -4,6 +4,8 @@ github.com/andybalholm/brotli v1.0.5 h1:8uQZIdzKmjc/iuPu7O2ioW48L81FgatrcpfFmiq/
 github.com/andybalholm/brotli v1.0.5/go.mod h1:fO7iG3H7G2nSZ7m0zPUDn85XEX2GTukHGRSepvi9Eig=
 github.com/ayanami-desu/smux v0.0.0-20230315121539-62ee07d62f07 h1:UjqZ152q+RIA9BM0+Cna2qzdZXMhVu6CSZTmt972Ki4=
 github.com/ayanami-desu/smux v0.0.0-20230315121539-62ee07d62f07/go.mod h1:y4PbzVt1pK6yaf6kle+CKc76Pqs0f9Atz/Q5EPBXXEE=
+github.com/ayanami-desu/smux v0.0.0-20230316115135-11c3fd2f1a31 h1:BOW7Ch+bNV5afqN2QwTrWpGRqQC6QrjeHe7jqyK6c28=
+github.com/ayanami-desu/smux v0.0.0-20230316115135-11c3fd2f1a31/go.mod h1:y4PbzVt1pK6yaf6kle+CKc76Pqs0f9Atz/Q5EPBXXEE=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/cheekybits/genny v1.0.0 h1:uGGa4nei+j20rOSeDeP5Of12XVm7TGUd4dJA9RDitfE=
 github.com/chzyer/logex v1.1.10/go.mod h1:+Ywpsq7O8HXn0nuIou7OrIPyXbp3wmkHB+jjWRnGsAI=
