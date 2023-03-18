@@ -20,18 +20,23 @@ func Server(conn net.Conn, keys *AuthInfo) (tlsConn *Conn, err error) {
 	if err != nil {
 		return
 	}
-	totalData, H := makeServerReply(sInfo, cInfo, keys)
+	totalData := makeServerPacketOne(sInfo)
 	_, err = conn.Write(totalData)
 	if err != nil {
 		return
 	}
-	clientSig, err := readClientSig(conn)
+	clientSig, err := readSig(conn)
 	if err != nil {
 		return
 	}
+	H := generateHash(sInfo, cInfo)
 	if !ed25519.Verify(keys.PublicKey, H, clientSig) {
 		err = fmt.Errorf("客户端签名验证未通过")
 		return
+	}
+	sig := ed25519.Sign(keys.PrivateKey, H)
+	if err := replyWithSig(conn, sig); err != nil {
+		return nil, err
 	}
 	tlsConn = &Conn{
 		Conn:      conn,
@@ -104,7 +109,7 @@ func handleClientPacket(buf []byte) (sInfo *selfAuthInfo, cInfo *otherAuthInfo, 
 	}
 	return
 }
-func makeServerReply(sInfo *selfAuthInfo, cInfo *otherAuthInfo, keys *AuthInfo) (totalData, H []byte) {
+func makeServerPacketOne(sInfo *selfAuthInfo) (totalData []byte) {
 	paddingLen := intRange(MinPaddingLen, MaxPaddingLen)
 	entropyLen := intRange(MinPaddingLen, MaxPaddingLen)
 	padding1 := make([]byte, paddingLen)
@@ -130,6 +135,22 @@ func makeServerReply(sInfo *selfAuthInfo, cInfo *otherAuthInfo, keys *AuthInfo) 
 	totalData = append(totalData, sInfo.EphPub[:]...)
 	totalData = append(totalData, entropy...)
 	totalData = append(totalData, padding2...)
+	return
+	//生成签名
+	//h := crypto.SHA256.New()
+	//writeString(h, cInfo.SessionId)
+	//writeString(h, cInfo.EphPub[:])
+	//writeString(h, cInfo.Entropy)
+	//writeString(h, sInfo.SessionId)
+	//writeString(h, sInfo.EphPub[:])
+	//writeString(h, sInfo.Entropy)
+	//writeString(h, sInfo.SharedKey)
+	//H = h.Sum(nil)
+	//sig := ed25519.Sign(keys.PrivateKey, H)
+	//totalData = append(totalData, sig...)
+	//return
+}
+func generateHash(sInfo *selfAuthInfo, cInfo *otherAuthInfo) (H []byte) {
 	//生成签名
 	h := crypto.SHA256.New()
 	writeString(h, cInfo.SessionId)
@@ -140,11 +161,9 @@ func makeServerReply(sInfo *selfAuthInfo, cInfo *otherAuthInfo, keys *AuthInfo) 
 	writeString(h, sInfo.Entropy)
 	writeString(h, sInfo.SharedKey)
 	H = h.Sum(nil)
-	sig := ed25519.Sign(keys.PrivateKey, H)
-	totalData = append(totalData, sig...)
 	return
 }
-func readClientSig(conn net.Conn) (sig []byte, err error) {
+func readSig(conn net.Conn) (sig []byte, err error) {
 	conn.SetReadDeadline(time.Now().Add(ReadTimeOut))
 	defer conn.SetReadDeadline(time.Time{})
 

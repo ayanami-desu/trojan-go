@@ -22,15 +22,20 @@ func Client(conn net.Conn, authInfo *AuthInfo) (*Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	H, secret, serverSig, err := handlePacketOne(buf, cInfo)
+	H, secret, err := handleServerPacketOne(buf, cInfo)
+	sig := ed25519.Sign(authInfo.PrivateKey, H)
+	if err := replyWithSig(conn, sig); err != nil {
+		return nil, err
+	}
+	serverSig, err := readSig(conn)
+	if err != nil {
+		return nil, err
+	}
 	if !ed25519.Verify(authInfo.PublicKey, H, serverSig) {
 		err = fmt.Errorf("服务端签名验证未通过")
 		return nil, err
 	}
-	sig := ed25519.Sign(authInfo.PrivateKey, H)
-	if err := replySigToServer(conn, sig); err != nil {
-		return nil, err
-	}
+
 	return &Conn{
 		Conn:      conn,
 		SessionId: authInfo.SessionId,
@@ -94,7 +99,7 @@ func readServerPacketOne(conn net.Conn) (buf []byte, err error) {
 		return
 	}
 
-	dataLength := 3 + int(binary.LittleEndian.Uint16(buf[1:3])) + EphPubKeyLen + SessionIdLen + SigLen
+	dataLength := 3 + int(binary.LittleEndian.Uint16(buf[1:3])) + EphPubKeyLen + SessionIdLen
 	if dataLength > MaxServerPacketOneSize {
 		err = fmt.Errorf("收到的服务端握手包长度(%v)超过限制", dataLength)
 		return
@@ -102,7 +107,7 @@ func readServerPacketOne(conn net.Conn) (buf []byte, err error) {
 	_, err = io.ReadFull(conn, buf[3:dataLength])
 	return
 }
-func handlePacketOne(buf []byte, cInfo *selfAuthInfo) (H, secret, serverSig []byte, err error) {
+func handleServerPacketOne(buf []byte, cInfo *selfAuthInfo) (H, secret []byte, err error) {
 	entropyLen := int(buf[0])
 	paddingLen := (int(binary.LittleEndian.Uint16(buf[1:3])) - entropyLen) / 2
 	offset := 3 + paddingLen
@@ -112,8 +117,8 @@ func handlePacketOne(buf []byte, cInfo *selfAuthInfo) (H, secret, serverSig []by
 	copy(ephPubS[:], buf[offset:offset+EphPubKeyLen])
 	offset += EphPubKeyLen
 	entropy := buf[offset : offset+entropyLen]
-	offset = offset + entropyLen + paddingLen
-	serverSig = buf[offset : offset+SigLen]
+	//offset = offset + entropyLen + paddingLen
+	//serverSig = buf[offset : offset+SigLen]
 	sInfo := &otherAuthInfo{
 		Entropy:   entropy,
 		SessionId: SessionId,
@@ -135,7 +140,7 @@ func handlePacketOne(buf []byte, cInfo *selfAuthInfo) (H, secret, serverSig []by
 	H = h.Sum(nil)
 	return
 }
-func replySigToServer(conn net.Conn, sig []byte) (err error) {
+func replyWithSig(conn net.Conn, sig []byte) (err error) {
 	paddingLen := intRange(128, 256)
 	padding := make([]byte, paddingLen)
 	readRand(&padding)

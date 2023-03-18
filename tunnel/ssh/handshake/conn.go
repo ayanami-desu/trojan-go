@@ -82,7 +82,7 @@ func (s *Conn) readInternal(b []byte) (n int, err error) {
 	if s.recv == nil {
 		s.recv, err = cipher.NewAESGCMBlockCipher(s.SharedKey)
 		if err != nil {
-			log.Fatalf("创建读加密块失败: %w", err)
+			log.Fatalf("创建读加密块失败: %v", err)
 		}
 	}
 
@@ -129,6 +129,7 @@ func (s *Conn) readInternal(b []byte) (n int, err error) {
 	copy(s.recvBuf, decryptedPayload[PayloadOverhead:PayloadOverhead+usefulSize])
 	n = copy(b, s.recvBuf)
 	s.recvBufPtr = s.recvBuf[n:]
+	log.Tracef("ssh conn read %d bytes from wire", n)
 	return n, nil
 }
 
@@ -175,7 +176,7 @@ func (s *Conn) writeChunk(b []byte) (n int, err error) {
 		if s.isClient {
 			s.send, err = cipher.NewAESGCMBlockCipher(s.SharedKey)
 			if err != nil {
-				log.Fatalf("创建写加密块失败: %w", err)
+				log.Fatalf("创建写加密块失败: %v", err)
 			}
 		} else {
 			if s.recv != nil {
@@ -187,7 +188,7 @@ func (s *Conn) writeChunk(b []byte) (n int, err error) {
 				log.Warnf("收发加密块均为空")
 				s.send, err = cipher.NewAESGCMBlockCipher(s.SharedKey)
 				if err != nil {
-					log.Fatalf("创建写加密块失败: %w", err)
+					log.Fatalf("创建写加密块失败: %v", err)
 				}
 			}
 		}
@@ -212,7 +213,7 @@ func (s *Conn) writeChunk(b []byte) (n int, err error) {
 	if _, err := io.WriteString(s.Conn, string(dataToSend)); err != nil {
 		return 0, fmt.Errorf("io.WriteString() failed: %w", err)
 	}
-
+	log.Tracef("ssh conn wrote %d bytes to wire", len(b))
 	return len(b), nil
 }
 func (s *Conn) Close() error {
