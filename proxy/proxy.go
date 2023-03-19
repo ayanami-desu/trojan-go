@@ -156,7 +156,7 @@ func NewProxy(ctx context.Context, cancel context.CancelFunc, sources []tunnel.S
 	return &Proxy{
 		sources:         sources,
 		sink:            sink,
-		relayBufferSize: cfg.RelayBufferSize,
+		relayBufferSize: 1024 * cfg.RelayBufferSize,
 		ctx:             ctx,
 		cancel:          cancel,
 	}
