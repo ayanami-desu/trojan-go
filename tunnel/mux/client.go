@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ayanami-desu/smux"
+	"github.com/sagernet/smux"
 
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
@@ -139,9 +139,8 @@ func (c *Client) DialConn(*tunnel.Address, tunnel.Tunnel) (tunnel.Conn, error) {
 			return nil, common.NewError("mux failed to open stream from client").Base(err)
 		}
 		return &Conn{
-			rwc: rwc,
-			//Conn: info.underlayConn,
-			//这里填底层连接有什么用？
+			rwc:  rwc,
+			Conn: info.underlayConn,
 		}, nil
 	}
 
@@ -153,9 +152,15 @@ func (c *Client) DialConn(*tunnel.Address, tunnel.Tunnel) (tunnel.Conn, error) {
 			log.Infof("Mux client %x is closed", info.id)
 			continue
 		}
-		if time.Since(info.createdTime) > c.maxConnTime {
+		if info.client.NumStreams() == 0 && time.Since(info.lastActiveTime) > c.timeout {
+			info.client.Close()
+			info.underlayConn.Close()
 			delete(c.clientPool, info.id)
-			log.Tracef("delete mux client %x due to live to long", info.id)
+			log.Infof("mux client %x is closed due to inactivity", info.id)
+			continue
+		}
+		if time.Since(info.createdTime) > c.maxConnTime {
+			log.Infof("skip mux client %x due to live to long", info.id)
 			continue
 		}
 		if info.client.NumStreams() < c.concurrency {

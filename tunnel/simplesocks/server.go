@@ -84,7 +84,7 @@ func NewServer(ctx context.Context, underlay tunnel.Server) (*Server, error) {
 	server := &Server{
 		underlay:   underlay,
 		ctx:        ctx,
-		connChan:   make(chan tunnel.Conn, 32),
+		connChan:   make(chan tunnel.Conn, 128),
 		packetChan: make(chan tunnel.PacketConn, 32),
 		cancel:     cancel,
 	}

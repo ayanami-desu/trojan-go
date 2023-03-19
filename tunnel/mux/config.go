@@ -16,7 +16,7 @@ func init() {
 	config.RegisterConfigCreator(Name, func() interface{} {
 		return &Config{
 			Mux: MuxConfig{
-				IdleTimeout: 60,
+				IdleTimeout: 30,
 				Concurrency: 8,
 				MaxConnTime: 300,
 			},

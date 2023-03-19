@@ -3,7 +3,7 @@ package mux
 import (
 	"context"
 
-	"github.com/ayanami-desu/smux"
+	"github.com/sagernet/smux"
 
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/tunnel"
@@ -42,16 +42,19 @@ func (s *Server) acceptConnWorker() {
 				defer conn.Close()
 				defer session.Close()
 				for {
-					stream, err := session.AcceptStream()
+					stream, err := session.Accept()
 					if err != nil {
 						log.Error(err)
 						return
 					}
 					select {
 					case s.connChan <- &Conn{
-						rwc: stream,
-						//Conn: conn,
+						rwc:  stream,
+						Conn: conn,
 					}:
+					case <-session.CloseChan():
+						log.Error("会话已关闭")
+						return
 					case <-s.ctx.Done():
 						log.Debug("exiting")
 						return
