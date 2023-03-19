@@ -49,7 +49,7 @@ func (s *Server) acceptLoop() {
 				PrivateKey: s.priKey,
 			})
 			if err != nil {
-				log.Warnf("服务端处理握手失败%v", err)
+				log.Warnf("server failed to handshake: %v", err)
 				conn.Close()
 				return
 			}

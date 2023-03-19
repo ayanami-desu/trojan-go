@@ -2,6 +2,8 @@ package mux
 
 import (
 	"context"
+	"errors"
+	"io"
 
 	"github.com/sagernet/smux"
 
@@ -39,12 +41,15 @@ func (s *Server) acceptConnWorker() {
 				return
 			}
 			go func(session *smux.Session, conn tunnel.Conn) {
-				defer conn.Close()
 				defer session.Close()
 				for {
 					stream, err := session.Accept()
 					if err != nil {
-						log.Error(err)
+						if errors.Is(err, io.EOF) {
+							log.Info(err)
+						} else {
+							log.Error(err)
+						}
 						return
 					}
 					select {
@@ -52,9 +57,6 @@ func (s *Server) acceptConnWorker() {
 						rwc:  stream,
 						Conn: conn,
 					}:
-					case <-session.CloseChan():
-						log.Error("会话已关闭")
-						return
 					case <-s.ctx.Done():
 						log.Debug("exiting")
 						return

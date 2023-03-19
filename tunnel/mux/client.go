@@ -154,7 +154,6 @@ func (c *Client) DialConn(*tunnel.Address, tunnel.Tunnel) (tunnel.Conn, error) {
 		}
 		if info.client.NumStreams() == 0 && time.Since(info.lastActiveTime) > c.timeout {
 			info.client.Close()
-			info.underlayConn.Close()
 			delete(c.clientPool, info.id)
 			log.Infof("mux client %x is closed due to inactivity", info.id)
 			continue

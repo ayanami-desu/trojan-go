@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"encoding/binary"
 	"fmt"
+	"github.com/p4gefau1t/trojan-go/common"
 	log "github.com/sirupsen/logrus"
 	"io"
 	"net"
@@ -13,23 +14,22 @@ import (
 
 func Client(conn net.Conn, authInfo *AuthInfo) (*Conn, error) {
 	payload, cInfo := makeClientPacketOne(authInfo.SessionId)
-
 	_, err := conn.Write(payload)
 	if err != nil {
-		return nil, err
+		return nil, common.NewError("failed to send packet").Base(err)
 	}
 	buf, err := readServerPacketOne(conn)
 	if err != nil {
-		return nil, err
+		return nil, common.NewError("failed to read server packet").Base(err)
 	}
 	H, secret, err := handleServerPacketOne(buf, cInfo)
 	sig := ed25519.Sign(authInfo.PrivateKey, H)
 	if err := replyWithSig(conn, sig); err != nil {
-		return nil, err
+		return nil, common.NewError("client failed to reply sig").Base(err)
 	}
 	serverSig, err := readSig(conn)
 	if err != nil {
-		return nil, err
+		return nil, common.NewError("client failed to read server sig").Base(err)
 	}
 	if !ed25519.Verify(authInfo.PublicKey, H, serverSig) {
 		err = fmt.Errorf("服务端签名验证未通过")
@@ -117,8 +117,6 @@ func handleServerPacketOne(buf []byte, cInfo *selfAuthInfo) (H, secret []byte, e
 	copy(ephPubS[:], buf[offset:offset+EphPubKeyLen])
 	offset += EphPubKeyLen
 	entropy := buf[offset : offset+entropyLen]
-	//offset = offset + entropyLen + paddingLen
-	//serverSig = buf[offset : offset+SigLen]
 	sInfo := &otherAuthInfo{
 		Entropy:   entropy,
 		SessionId: SessionId,
@@ -126,7 +124,7 @@ func handleServerPacketOne(buf []byte, cInfo *selfAuthInfo) (H, secret []byte, e
 	}
 	secret, err = generateSharedSecret(cInfo.EphPri, sInfo.EphPub)
 	if err != nil {
-		log.Warnf("error in generating shared secret: %v", err)
+		err = common.NewError("error in generating shared secret").Base(err)
 		return
 	}
 	h := crypto.SHA256.New()

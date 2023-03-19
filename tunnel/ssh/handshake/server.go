@@ -5,47 +5,46 @@ import (
 	"crypto/ed25519"
 	"encoding/binary"
 	"fmt"
-	log "github.com/sirupsen/logrus"
+	"github.com/p4gefau1t/trojan-go/common"
 	"io"
 	"net"
 	"time"
 )
 
-func Server(conn net.Conn, keys *AuthInfo) (tlsConn *Conn, err error) {
+func Server(conn net.Conn, keys *AuthInfo) (*Conn, error) {
 	clientInfo, err := readClientPacket(conn)
 	if err != nil {
-		return
+		return nil, common.NewError("failed to read client packet ").Base(err)
 	}
 	sInfo, cInfo, err := handleClientPacket(clientInfo)
 	if err != nil {
-		return
+		return nil, err
 	}
 	totalData := makeServerPacketOne(sInfo)
 	_, err = conn.Write(totalData)
 	if err != nil {
-		return
+		return nil, common.NewError("failed return packet to client").Base(err)
 	}
 	clientSig, err := readSig(conn)
 	if err != nil {
-		return
+		return nil, common.NewError("failed read client sig").Base(err)
 	}
 	H := generateHash(sInfo, cInfo)
 	if !ed25519.Verify(keys.PublicKey, H, clientSig) {
-		err = fmt.Errorf("客户端签名验证未通过")
-		return
+		return nil, fmt.Errorf("客户端签名验证未通过")
 	}
 	sig := ed25519.Sign(keys.PrivateKey, H)
 	if err := replyWithSig(conn, sig); err != nil {
-		return nil, err
+		return nil, common.NewError("server failed to reply sig").Base(err)
 	}
-	tlsConn = &Conn{
+
+	return &Conn{
 		Conn:      conn,
 		SessionId: cInfo.SessionId,
 		SharedKey: sInfo.SharedKey,
 		isClient:  false,
 		recvBuf:   make([]byte, MaxPayloadSize),
-	}
-	return
+	}, nil
 }
 func readClientPacket(conn net.Conn) (buf []byte, err error) {
 	conn.SetReadDeadline(time.Now().Add(ReadTimeOut))
@@ -86,13 +85,13 @@ func handleClientPacket(buf []byte) (sInfo *selfAuthInfo, cInfo *otherAuthInfo, 
 	//开始验证目标公钥
 	ephPriS, ephPubS, err := generateKey()
 	if err != nil {
-		log.Warnf("failed to generate ephemeral key pair: %v", err)
+		err = common.NewError("failed to generate ephemeral key pair").Base(err)
 		return
 	}
 	var secret []byte
 	secret, err = generateSharedSecret(ephPriS, ephPubC)
 	if err != nil {
-		log.Warnf("error in generating shared secret: %v", err)
+		err = common.NewError("error in generating shared secret").Base(err)
 		return
 	}
 	sInfo = &selfAuthInfo{
