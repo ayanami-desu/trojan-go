@@ -11,8 +11,6 @@ import (
 )
 
 type Server struct {
-	priKey   []byte
-	pubKey   []byte
 	underlay tunnel.Server
 	connChan chan tunnel.Conn
 	ctx      context.Context
@@ -34,20 +32,17 @@ func (s *Server) AcceptConn(tunnel.Tunnel) (tunnel.Conn, error) {
 }
 func (s *Server) acceptLoop() {
 	for {
-		conn, err := s.underlay.AcceptConn(&Tunnel{})
+		conn, err := s.underlay.AcceptConn(nil)
 		if err != nil {
 			select {
 			case <-s.ctx.Done():
 			default:
-				log.Fatal(common.NewError("transport accept error" + err.Error()))
+				log.Fatal(common.NewError("ssh accept error" + err.Error()))
 			}
 			return
 		}
 		go func(conn net.Conn) {
-			tlsConn, err := handshake.Server(conn, &handshake.AuthInfo{
-				PublicKey:  s.pubKey,
-				PrivateKey: s.priKey,
-			})
+			tlsConn, err := handshake.Server(conn)
 			if err != nil {
 				log.Warnf("server failed to handshake: %v", err)
 				conn.Close()
@@ -65,16 +60,10 @@ func (s *Server) AcceptPacket(tunnel.Tunnel) (tunnel.PacketConn, error) {
 
 func NewServer(ctx context.Context, underlay tunnel.Server) (*Server, error) {
 	cfg := config.FromContext(ctx, Name).(*Config)
-	pri, pub, err := handshake.LoadKeyPair(cfg.Ssh.Pri, cfg.Ssh.Pub)
-	if err != nil {
-		return nil, common.NewError("ssh failed to load key pair")
-	}
-	handshake.InitSeed()
+	handshake.Init(cfg.Ssh.Pri, cfg.Ssh.Pub)
 	ctx, cancel := context.WithCancel(ctx)
 	server := &Server{
 		underlay: underlay,
-		priKey:   pri,
-		pubKey:   pub,
 		connChan: make(chan tunnel.Conn, 32),
 		ctx:      ctx,
 		cancel:   cancel,

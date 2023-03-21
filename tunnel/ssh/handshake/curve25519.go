@@ -36,7 +36,7 @@ func writeString(w io.Writer, s []byte) {
 	w.Write(s)
 }
 
-func LoadKeyPair(pri, pub string) (priK, pubK []byte, err error) {
+func loadKeyPair(pri, pub string) (priK, pubK []byte, err error) {
 	if len(pri) == 0 {
 		err = fmt.Errorf("must have a valid private key")
 		return

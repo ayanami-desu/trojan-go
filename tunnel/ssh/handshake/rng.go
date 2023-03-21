@@ -15,7 +15,7 @@ var once sync.Once
 var hostFixedValue atomic.Value
 
 // InitSeed initializes the random seed.
-func InitSeed() {
+func initSeed() {
 	once.Do(func() {
 		mrand.Seed(time.Now().UnixNano())
 	})
@@ -76,4 +76,3 @@ func scaleDown() float64 {
 	base := mrand.Float64()
 	return base * base
 }
-

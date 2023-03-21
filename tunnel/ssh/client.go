@@ -10,8 +10,6 @@ import (
 )
 
 type Client struct {
-	priKey    []byte
-	pubKey    []byte
 	sessionId []byte
 	underlay  tunnel.Client
 	ctx       context.Context
@@ -37,11 +35,8 @@ func (c *Client) DialConn(_ *tunnel.Address, _ tunnel.Tunnel) (tunnel.Conn, erro
 	if err != nil {
 		return nil, common.NewError("ssh failed to dial conn").Base(err)
 	}
-	tlsConn, err := handshake.Client(conn, &handshake.AuthInfo{
-		PublicKey:  c.pubKey,
-		PrivateKey: c.priKey,
-		SessionId:  c.sessionId,
-	})
+	handshake.AuthInfo.SessionId = c.sessionId
+	tlsConn, err := handshake.Client(conn)
 	if err != nil {
 		conn.Close()
 		return nil, common.NewError("ssh failed to handshake with remote server").Base(err)
@@ -56,16 +51,10 @@ func (c *Client) Close() error {
 }
 func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
 	cfg := config.FromContext(ctx, Name).(*Config)
-	pri, pub, err := handshake.LoadKeyPair(cfg.Ssh.Pri, cfg.Ssh.Pub)
-	if err != nil {
-		return nil, common.NewError("ssh failed to load key pair")
-	}
-	handshake.InitSeed()
+	handshake.Init(cfg.Ssh.Pri, cfg.Ssh.Pub)
 	ctx, cancel := context.WithCancel(ctx)
 	client := &Client{
 		underlay: underlay,
-		priKey:   pri,
-		pubKey:   pub,
 		ctx:      ctx,
 		cancel:   cancel,
 	}

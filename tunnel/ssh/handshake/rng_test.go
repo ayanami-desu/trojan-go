@@ -29,7 +29,7 @@ func generate() []int {
 	return list
 }
 func rngWithInit(t *testing.T) {
-	InitSeed()
+	initSeed()
 	a, b := 0, intRange(baseWriteChunkSize, maxWriteChunkSize)
 	for i := 0; i < 10; i++ {
 		a = intRange(baseWriteChunkSize, maxWriteChunkSize)
