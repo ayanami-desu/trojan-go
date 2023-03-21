@@ -52,6 +52,12 @@ func (u *SessionManage) NumSession() int {
 	defer u.sessionsM.RUnlock()
 	return len(u.sessions)
 }
+
+func (u *SessionManage) AddSession(sess *Session) {
+	u.sessionsM.RLock()
+	defer u.sessionsM.RUnlock()
+	u.sessions[sess.id] = sess
+}
 func transSessionId(a []byte) uint32 {
 	return binary.LittleEndian.Uint32(a)
 }

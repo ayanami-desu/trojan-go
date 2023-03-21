@@ -7,7 +7,6 @@ import (
 	"github.com/p4gefau1t/trojan-go/tunnel"
 	"github.com/p4gefau1t/trojan-go/tunnel/ssh"
 	log "github.com/sirupsen/logrus"
-	"time"
 )
 
 type Server struct {
@@ -108,7 +107,6 @@ func NewServer(ctx context.Context, underlay tunnel.Server) (*Server, error) {
 		server.sessConfig.MaxConnNum = cfg.Multi.MaxConnNum
 		server.sessConfig.Singleplex = false
 	}
-	server.sessConfig.InactivityTimeout = time.Duration(cfg.Multi.StreamTimeout) * time.Second
 	go server.acceptConnWorker()
 	log.Debugf("multiplex server created")
 	return server, nil

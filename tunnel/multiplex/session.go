@@ -11,9 +11,8 @@ import (
 )
 
 const (
-	acceptBacklog            = 1024
-	defaultInactivityTimeout = 30 * time.Second
-	defaultMaxOnWireSize     = 1<<14 + 256 // https://tools.ietf.org/html/rfc8446#section-5.2
+	acceptBacklog        = 1024
+	defaultMaxOnWireSize = 1<<14 + 256 // https://tools.ietf.org/html/rfc8446#section-5.2
 )
 
 var ErrBrokenSession = errors.New("broken session")
@@ -31,17 +30,14 @@ type SessionConfig struct {
 
 	// maximum size of an obfuscated frame, including headers and overhead
 	MsgOnWireSizeLimit int
-
-	// InactivityTimeout sets the duration a Session waits while it has no active streams before it closes itself
-	InactivityTimeout time.Duration
 }
 
 // A Session represents a self-contained communication chain between local and remote. It manages its streams,
 // controls serialisation and encryption of data sent and received using the supplied Obfuscator, and send and receive
 // data through a manged connection pool filled with underlying connections added to it.
 type Session struct {
-	id uint32
-
+	id          uint32
+	createdTime time.Time
 	SessionConfig
 
 	// atomic
@@ -87,12 +83,9 @@ func MakeSession(id uint32, config SessionConfig) *Session {
 		recvFramePool: sync.Pool{New: func() interface{} { return &Frame{} }},
 		streams:       map[uint32]*Stream{},
 	}
-
+	sesh.createdTime = time.Now()
 	if config.MsgOnWireSizeLimit <= 0 {
 		sesh.MsgOnWireSizeLimit = defaultMaxOnWireSize
-	}
-	if config.InactivityTimeout == 0 {
-		sesh.InactivityTimeout = defaultInactivityTimeout
 	}
 
 	sesh.maxStreamUnitWrite = sesh.MsgOnWireSizeLimit - frameHeaderLength
@@ -105,7 +98,6 @@ func MakeSession(id uint32, config SessionConfig) *Session {
 	}}
 
 	sesh.sb = makeSwitchboard(sesh)
-	time.AfterFunc(sesh.InactivityTimeout, sesh.checkTimeout)
 	return sesh
 }
 
@@ -200,7 +192,6 @@ func (sesh *Session) closeStream(s *Stream, active bool) error {
 			return sesh.Close()
 		} else {
 			log.Debugf("session %v has no active stream left", sesh.id)
-			time.AfterFunc(sesh.InactivityTimeout, sesh.checkTimeout)
 		}
 	}
 	return nil
@@ -325,9 +316,9 @@ func (sesh *Session) IsClosed() bool {
 	return atomic.LoadUint32(&sesh.closed) == 1
 }
 
-func (sesh *Session) checkTimeout() {
-	if sesh.streamCount() == 0 && !sesh.IsClosed() {
-		sesh.SetTerminalMsg("timeout")
-		sesh.Close()
-	}
-}
+//func (sesh *Session) checkTimeout() {
+//	if sesh.streamCount() == 0 && !sesh.IsClosed() {
+//		sesh.SetTerminalMsg("timeout")
+//		sesh.Close()
+//	}
+//}
