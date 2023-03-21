@@ -80,7 +80,7 @@ func (s *Conn) readInternal(b []byte) (n int, err error) {
 	var decryptedLen []byte
 
 	if s.recv == nil {
-		s.recv, err = cipher.NewAESGCMBlockCipher(s.SharedKey)
+		s.recv, err = cipher.NewAESGCMBlockCipher(s.SharedKey[:16])
 		if err != nil {
 			log.Fatalf("创建读加密块失败: %v", err)
 		}
@@ -173,25 +173,29 @@ func (s *Conn) writeChunk(b []byte) (n int, err error) {
 
 	// Create send block cipher if needed.
 	if s.send == nil {
-		if s.isClient {
-			s.send, err = cipher.NewAESGCMBlockCipher(s.SharedKey)
-			if err != nil {
-				log.Fatalf("创建写加密块失败: %v", err)
-			}
-		} else {
-			if s.recv != nil {
-				s.send = s.recv.Clone()
-				s.send.SetImplicitNonceMode(false) // clear implicit nonce
-				s.send.SetImplicitNonceMode(true)
-			} else {
-				//TODO 为什么服务端侧会先写？
-				log.Warnf("收发加密块均为空")
-				s.send, err = cipher.NewAESGCMBlockCipher(s.SharedKey)
-				if err != nil {
-					log.Fatalf("创建写加密块失败: %v", err)
-				}
-			}
+		s.send, err = cipher.NewAESGCMBlockCipher(s.SharedKey[:16])
+		if err != nil {
+			log.Fatalf("创建写加密块失败: %v", err)
 		}
+		//if s.isClient {
+		//	s.send, err = cipher.NewAESGCMBlockCipher(s.SharedKey)
+		//	if err != nil {
+		//		log.Fatalf("创建写加密块失败: %v", err)
+		//	}
+		//} else {
+		//	if s.recv != nil {
+		//		s.send = s.recv.Clone()
+		//		s.send.SetImplicitNonceMode(false) // clear implicit nonce
+		//		s.send.SetImplicitNonceMode(true)
+		//	} else {
+		//		//TODO 为什么服务端侧会先写？
+		//		log.Warnf("收发加密块均为空")
+		//		s.send, err = cipher.NewAESGCMBlockCipher(s.SharedKey)
+		//		if err != nil {
+		//			log.Fatalf("创建写加密块失败: %v", err)
+		//		}
+		//	}
+		//}
 	}
 
 	// Create encrypted payload length.
