@@ -5,7 +5,6 @@ import (
 	"crypto/cipher"
 	"encoding/binary"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"sync"
 )
 
@@ -140,18 +139,4 @@ func decrypt(cipherText, key []byte) ([]byte, error) {
 		return nil, err
 	}
 	return dst, nil
-}
-func Init(pri, pub string) {
-	priK, pubK, err := loadKeyPair(pri, pub)
-	if err != nil {
-		log.Fatal(err)
-	}
-	AuthInfo = &authInfo{
-		PrivateKey: priK,
-		PublicKey:  pubK,
-	}
-	initSeed()
-	TokenPool = &tokenPool{
-		Tokens: make(map[uint32]*token),
-	}
 }
