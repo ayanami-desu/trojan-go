@@ -30,7 +30,7 @@ type authInfo struct {
 	SessionId  []byte
 }
 type tokenPool struct {
-	sync.Mutex
+	mu     sync.Mutex
 	Tokens map[uint32]*token
 }
 type token struct {
@@ -44,8 +44,8 @@ var (
 )
 
 func (p *tokenPool) getOrCreate(key []byte) ([]byte, error) {
-	p.Lock()
-	defer p.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if len(key) == 0 {
 		return nil, fmt.Errorf("key can not be nil")
 	}
@@ -67,22 +67,22 @@ func (p *tokenPool) add(key, content []byte) error {
 		return fmt.Errorf("token content can not be nil")
 	}
 	id := binary.LittleEndian.Uint32(content[:4])
-	p.Lock()
+	p.mu.Lock()
 	p.Tokens[id] = &token{
 		Key:     key,
 		Content: content,
 	}
-	p.Unlock()
+	p.mu.Unlock()
 	return nil
 }
 func (p *tokenPool) remove(id uint32) {
-	p.Lock()
+	p.mu.Lock()
 	delete(p.Tokens, id)
-	p.Unlock()
+	p.mu.Unlock()
 }
 func (p *tokenPool) pick() ([]byte, error) {
-	p.Lock()
-	defer p.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	for id, v := range p.Tokens {
 		delete(p.Tokens, id)
 		return v.Content, nil
@@ -90,8 +90,8 @@ func (p *tokenPool) pick() ([]byte, error) {
 	return nil, fmt.Errorf("no token exists")
 }
 func (p *tokenPool) get(id uint32) ([]byte, error) {
-	p.Lock()
-	defer p.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if t, ok := p.Tokens[id]; ok {
 		return t.Content, nil
 	} else {
@@ -99,8 +99,8 @@ func (p *tokenPool) get(id uint32) ([]byte, error) {
 	}
 }
 func (p *tokenPool) tryGet(id uint32) bool {
-	p.Lock()
-	defer p.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if _, ok := p.Tokens[id]; ok {
 		delete(p.Tokens, id)
 		return ok
