@@ -91,7 +91,7 @@ func (s *Conn) readInternal(b []byte) (n int, err error) {
 		return 0, fmt.Errorf("decrypt() failed: %w", err)
 	}
 	readLen = int(binary.LittleEndian.Uint16(decryptedLen))
-	if readLen > MaxPayloadSize {
+	if readLen > maxPayloadSize {
 		return 0, fmt.Errorf("收到的包长度超过限制")
 	}
 	readLen += cipher.DefaultOverhead
@@ -106,18 +106,18 @@ func (s *Conn) readInternal(b []byte) (n int, err error) {
 		return 0, fmt.Errorf("decrypt() failed: %w", err)
 	}
 	// Extract useful payload from decrypted payload.
-	if len(decryptedPayload) < PayloadOverhead {
+	if len(decryptedPayload) < payloadOverhead {
 		return 0, fmt.Errorf("解密数据段长度短于4")
 	}
 	usefulSize := int(binary.LittleEndian.Uint16(decryptedPayload))
 	totalSize := int(binary.LittleEndian.Uint16(decryptedPayload[2:]))
-	if usefulSize > totalSize || totalSize+PayloadOverhead != len(decryptedPayload) {
+	if usefulSize > totalSize || totalSize+payloadOverhead != len(decryptedPayload) {
 		return 0, fmt.Errorf("协议错误")
 	}
 
 	// When b is large enough, receive data into b directly.
 	if len(b) >= usefulSize {
-		return copy(b, decryptedPayload[PayloadOverhead:PayloadOverhead+usefulSize]), nil
+		return copy(b, decryptedPayload[payloadOverhead:payloadOverhead+usefulSize]), nil
 	}
 
 	// When b is not large enough, first copy to recvbuf then copy to b.
@@ -126,7 +126,7 @@ func (s *Conn) readInternal(b []byte) (n int, err error) {
 		s.recvBuf = make([]byte, usefulSize)
 	}
 	s.recvBuf = s.recvBuf[:usefulSize]
-	copy(s.recvBuf, decryptedPayload[PayloadOverhead:PayloadOverhead+usefulSize])
+	copy(s.recvBuf, decryptedPayload[payloadOverhead:payloadOverhead+usefulSize])
 	n = copy(b, s.recvBuf)
 	s.recvBufPtr = s.recvBuf[n:]
 	log.Tracef("ssh conn read %d bytes from wire", n)
@@ -158,17 +158,17 @@ func (s *Conn) writeChunk(b []byte) (n int, err error) {
 	}
 
 	// Construct the payload with padding.
-	paddingSizeLimit := MaxPayloadSize - PayloadOverhead - len(b)
+	paddingSizeLimit := maxPayloadSize - payloadOverhead - len(b)
 	if paddingSizeLimit > maxPaddingSize {
 		paddingSizeLimit = maxPaddingSize
 	}
 	paddingSize := intn(paddingSizeLimit)
-	payload := make([]byte, PayloadOverhead+len(b)+paddingSize)
+	payload := make([]byte, payloadOverhead+len(b)+paddingSize)
 	binary.LittleEndian.PutUint16(payload, uint16(len(b)))
 	binary.LittleEndian.PutUint16(payload[2:], uint16(len(b)+paddingSize))
-	copy(payload[PayloadOverhead:], b)
+	copy(payload[payloadOverhead:], b)
 	if paddingSize > 0 {
-		crand.Read(payload[PayloadOverhead+len(b):])
+		crand.Read(payload[payloadOverhead+len(b):])
 	}
 
 	// Create send block cipher if needed.

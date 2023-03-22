@@ -3,17 +3,18 @@ package handshake
 import "time"
 
 const (
-	NonceLen           = 12
-	MinPaddingLen      = 128
-	MaxPaddingLen      = 255
-	EphPubKeyLen       = 32
-	SessionIdLen       = 4
-	SigLen             = 64
-	MaxPacketOneSize   = 4 + 3*MaxPaddingLen + SessionIdLen + EphPubKeyLen + NonceLen
-	MaxFastPacketSize  = MaxPacketOneSize + SigLen + 256
-	MaxPayloadSize     = 1024 * 16
-	PayloadOverhead    = 4
-	maxWriteChunkSize  = MaxPayloadSize - PayloadOverhead
-	baseWriteChunkSize = 9000
-	ReadTimeOut        = 5 * time.Second
+	nonceLen             = 12
+	clientPacketHeadSize = 4
+	serverPacketHeadSize = 3
+	minPaddingLen        = 128
+	maxPaddingLen        = 255
+	ephPubKeyLen         = 32
+	sessionIdLen         = 4
+	sigLen               = 64
+	maxRandomDataSize    = 3 * maxPaddingLen
+	maxPayloadSize       = 1024 * 16
+	payloadOverhead      = 4
+	maxWriteChunkSize    = maxPayloadSize - payloadOverhead
+	baseWriteChunkSize   = 9000
+	readTimeOut          = 5 * time.Second
 )
