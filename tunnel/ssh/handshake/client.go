@@ -38,13 +38,15 @@ func Client(conn net.Conn) (*Conn, error) {
 		err = fmt.Errorf("服务端签名验证未通过")
 		return nil, err
 	}
-	TokenPool.add(secret, decryptedToken)
+	if err := TokenPool.add(secret, decryptedToken); err != nil {
+		return nil, err
+	}
 	return &Conn{
 		Conn:      conn,
 		SessionId: AuthInfo.SessionId,
 		SharedKey: secret,
 		isClient:  true,
-		recvBuf:   make([]byte, MaxPayloadSize),
+		recvBuf:   make([]byte, maxPayloadSize),
 	}, nil
 }
 func fastlyHs(conn net.Conn, token []byte) (*Conn, error) {
@@ -62,7 +64,7 @@ func fastlyHs(conn net.Conn, token []byte) (*Conn, error) {
 		SessionId: info.SessionId,
 		SharedKey: secret,
 		isClient:  true,
-		recvBuf:   make([]byte, MaxPayloadSize),
+		recvBuf:   make([]byte, maxPayloadSize),
 	}, nil
 }
 
@@ -79,11 +81,11 @@ func makeClientPacketOne(id, token []byte) (totalData []byte, info *selfAuthInfo
 		//entropy = make([]byte, entropyLen)
 		//copy(entropy, token)
 	} else {
-		entropyLen = intRange(MinPaddingLen, MaxPaddingLen)
+		entropyLen = intRange(minPaddingLen, maxPaddingLen)
 		entropy = make([]byte, entropyLen)
 		readRand(&entropy)
 	}
-	paddingLen := intRange(MinPaddingLen, MaxPaddingLen)
+	paddingLen := intRange(minPaddingLen, maxPaddingLen)
 	log.Debugf("paddingLen is %d", paddingLen)
 	padding1 := make([]byte, paddingLen)
 	sessionId := make([]byte, 4)
@@ -93,7 +95,7 @@ func makeClientPacketOne(id, token []byte) (totalData []byte, info *selfAuthInfo
 		copy(sessionId, id)
 	}
 	padding2 := make([]byte, paddingLen)
-	totalData = make([]byte, NonceLen)
+	totalData = make([]byte, nonceLen)
 	readRand(&totalData)
 	readRand(&padding1)
 	readRand(&padding2)
@@ -125,10 +127,10 @@ func makeClientPacketOne(id, token []byte) (totalData []byte, info *selfAuthInfo
 	return
 }
 func readServerPacketOne(conn net.Conn) (buf []byte, err error) {
-	conn.SetReadDeadline(time.Now().Add(ReadTimeOut))
+	conn.SetReadDeadline(time.Now().Add(readTimeOut))
 	defer conn.SetReadDeadline(time.Time{})
 
-	nonce := make([]byte, NonceLen)
+	nonce := make([]byte, nonceLen)
 	_, err = io.ReadFull(conn, nonce)
 	if err != nil {
 		return
@@ -139,12 +141,13 @@ func readServerPacketOne(conn net.Conn) (buf []byte, err error) {
 	if err != nil {
 		return
 	}
-
-	dataLength := 3 + int(binary.LittleEndian.Uint16(buf[1:3])) + EphPubKeyLen + SessionIdLen
-	if dataLength > MaxPacketOneSize {
-		err = fmt.Errorf("收到的服务端握手包长度(%v)超过限制", dataLength)
+	randomLen := int(binary.LittleEndian.Uint16(buf[1:3]))
+	if randomLen > maxRandomDataSize {
+		err = fmt.Errorf("收到的服务端握手包长度(%v)超过限制", randomLen)
 		return
 	}
+	dataLength := serverPacketHeadSize + randomLen + ephPubKeyLen + sessionIdLen
+
 	_, err = io.ReadFull(conn, buf[3:dataLength])
 	return
 }
@@ -152,11 +155,11 @@ func handleServerPacketOne(buf []byte, cInfo *selfAuthInfo) (H, secret []byte, e
 	entropyLen := int(buf[0])
 	paddingLen := (int(binary.LittleEndian.Uint16(buf[1:3])) - entropyLen) / 2
 	offset := 3 + paddingLen
-	SessionId := buf[offset : offset+SessionIdLen]
-	offset += SessionIdLen
+	SessionId := buf[offset : offset+sessionIdLen]
+	offset += sessionIdLen
 	var ephPubS [32]byte
-	copy(ephPubS[:], buf[offset:offset+EphPubKeyLen])
-	offset += EphPubKeyLen
+	copy(ephPubS[:], buf[offset:offset+ephPubKeyLen])
+	offset += ephPubKeyLen
 	entropy := buf[offset : offset+entropyLen]
 	sInfo := &otherAuthInfo{
 		Entropy:   entropy,
@@ -181,21 +184,21 @@ func handleServerPacketOne(buf []byte, cInfo *selfAuthInfo) (H, secret []byte, e
 }
 
 func readServerReply(conn net.Conn, key []byte) (sig, token []byte, err error) {
-	conn.SetReadDeadline(time.Now().Add(ReadTimeOut))
+	conn.SetReadDeadline(time.Now().Add(readTimeOut))
 	defer conn.SetReadDeadline(time.Time{})
 
-	nonce := make([]byte, NonceLen)
+	nonce := make([]byte, nonceLen)
 	_, err = io.ReadFull(conn, nonce)
 	if err != nil {
 		return
 	}
-	sigAndDataLen := make([]byte, SigLen+2)
+	sigAndDataLen := make([]byte, sigLen+2)
 	_, err = io.ReadFull(conn, sigAndDataLen)
 	if err != nil {
 		return
 	}
-	paddingLen := int(sigAndDataLen[SigLen])
-	tokenLen := int(sigAndDataLen[SigLen+1])
+	paddingLen := int(sigAndDataLen[sigLen])
+	tokenLen := int(sigAndDataLen[sigLen+1])
 	padding := make([]byte, paddingLen)
 	_, err = io.ReadFull(conn, padding)
 	if err != nil {
@@ -210,14 +213,14 @@ func readServerReply(conn net.Conn, key []byte) (sig, token []byte, err error) {
 	if err != nil {
 		return
 	}
-	sig = sigAndDataLen[:SigLen]
+	sig = sigAndDataLen[:sigLen]
 	return
 }
 func replyServer(conn net.Conn, sig []byte) (err error) {
 	paddingLen := intRange(128, 256)
 	padding := make([]byte, paddingLen)
 	readRand(&padding)
-	reply := make([]byte, NonceLen)
+	reply := make([]byte, nonceLen)
 	readRand(&reply)
 	reply = append(reply, sig...)
 	reply = append(reply, byte(paddingLen))

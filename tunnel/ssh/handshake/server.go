@@ -47,7 +47,7 @@ func Server(conn net.Conn) (*Conn, error) {
 		SessionId: cInfo.SessionId,
 		SharedKey: sInfo.SharedKey,
 		isClient:  false,
-		recvBuf:   make([]byte, MaxPayloadSize),
+		recvBuf:   make([]byte, maxPayloadSize),
 	}, nil
 }
 func handleFastHs(conn net.Conn, sInfo *selfAuthInfo, cInfo *otherAuthInfo) (*Conn, error) {
@@ -61,8 +61,7 @@ func handleFastHs(conn net.Conn, sInfo *selfAuthInfo, cInfo *otherAuthInfo) (*Co
 		sig := ed25519.Sign(AuthInfo.PrivateKey, H)
 		totalData := makeServerPacketOne(sInfo)
 		totalData = append(totalData, sig...)
-		tokenId := TokenPool.add(sInfo.SharedKey, nil)
-		tokenContent, err := TokenPool.get(tokenId)
+		tokenContent, err := TokenPool.getOrCreate(sInfo.SharedKey)
 		if err != nil {
 			return nil, err
 		}
@@ -80,16 +79,16 @@ func handleFastHs(conn net.Conn, sInfo *selfAuthInfo, cInfo *otherAuthInfo) (*Co
 			SessionId: cInfo.SessionId,
 			SharedKey: sInfo.SharedKey,
 			isClient:  false,
-			recvBuf:   make([]byte, MaxPayloadSize),
+			recvBuf:   make([]byte, maxPayloadSize),
 		}, nil
 	}
 	return nil, fmt.Errorf("不存在的token")
 }
 func readClientPacket(conn net.Conn) (buf []byte, err error) {
-	conn.SetReadDeadline(time.Now().Add(ReadTimeOut))
+	conn.SetReadDeadline(time.Now().Add(readTimeOut))
 	defer conn.SetReadDeadline(time.Time{})
 
-	nonce := make([]byte, NonceLen)
+	nonce := make([]byte, nonceLen)
 	_, err = io.ReadFull(conn, nonce)
 	if err != nil {
 		return
@@ -101,11 +100,12 @@ func readClientPacket(conn net.Conn) (buf []byte, err error) {
 		err = fmt.Errorf("read length from connection fail: %v", err)
 		return
 	}
-	dataLength := 4 + int(binary.LittleEndian.Uint16(buf[1:3])) + EphPubKeyLen + SessionIdLen
-	if dataLength > MaxPacketOneSize {
-		err = fmt.Errorf("客户端第一握手包长度超过限制")
+	randomLen := int(binary.LittleEndian.Uint16(buf[1:3]))
+	if randomLen > maxRandomDataSize {
+		err = fmt.Errorf("收到的服务端握手包长度(%v)超过限制", randomLen)
 		return
 	}
+	dataLength := clientPacketHeadSize + randomLen + ephPubKeyLen + sessionIdLen
 	_, err = io.ReadFull(conn, buf[4:dataLength])
 	if err != nil {
 		err = fmt.Errorf("read left content from connection fail: %v", err)
@@ -117,10 +117,10 @@ func handleClientPacket(buf []byte) (sInfo *selfAuthInfo, cInfo *otherAuthInfo, 
 	entropyLen := int(buf[0])
 	paddingLen := (int(binary.LittleEndian.Uint16(buf[1:3])) - entropyLen) / 2
 	offset := 4 + paddingLen
-	SessionId := buf[offset : offset+SessionIdLen]
-	offset += SessionIdLen
+	SessionId := buf[offset : offset+sessionIdLen]
+	offset += sessionIdLen
 	var ephPubC [32]byte
-	copy(ephPubC[:], buf[offset:offset+EphPubKeyLen])
+	copy(ephPubC[:], buf[offset:offset+ephPubKeyLen])
 	//开始验证目标公钥
 	ephPriS, ephPubS, err := generateKey()
 	if err != nil {
@@ -138,7 +138,7 @@ func handleClientPacket(buf []byte) (sInfo *selfAuthInfo, cInfo *otherAuthInfo, 
 		EphPub:    ephPubS,
 		SharedKey: secret,
 	}
-	offset += EphPubKeyLen
+	offset += ephPubKeyLen
 	entropy := buf[offset : offset+entropyLen]
 	isFastly := false
 	if int(buf[3])%2 == 0 {
@@ -153,14 +153,14 @@ func handleClientPacket(buf []byte) (sInfo *selfAuthInfo, cInfo *otherAuthInfo, 
 	return
 }
 func makeServerPacketOne(sInfo *selfAuthInfo) (totalData []byte) {
-	paddingLen := intRange(MinPaddingLen, MaxPaddingLen)
+	paddingLen := intRange(minPaddingLen, maxPaddingLen)
 	log.Debugf("paddingLen is %d", paddingLen)
-	entropyLen := intRange(MinPaddingLen, MaxPaddingLen)
+	entropyLen := intRange(minPaddingLen, maxPaddingLen)
 	padding1 := make([]byte, paddingLen)
-	sessionId := make([]byte, SessionIdLen)
+	sessionId := make([]byte, sessionIdLen)
 	entropy := make([]byte, entropyLen)
 	padding2 := make([]byte, paddingLen)
-	totalData = make([]byte, NonceLen)
+	totalData = make([]byte, nonceLen)
 	readRand(&totalData)
 	readRand(&padding1)
 	readRand(&sessionId)
@@ -195,15 +195,15 @@ func generateHash(sInfo *selfAuthInfo, cInfo *otherAuthInfo) (H []byte) {
 	return
 }
 func readClientReply(conn net.Conn) (sig []byte, err error) {
-	conn.SetReadDeadline(time.Now().Add(ReadTimeOut))
+	conn.SetReadDeadline(time.Now().Add(readTimeOut))
 	defer conn.SetReadDeadline(time.Time{})
 
-	nonce := make([]byte, NonceLen)
+	nonce := make([]byte, nonceLen)
 	_, err = io.ReadFull(conn, nonce)
 	if err != nil {
 		return
 	}
-	sigAndPaddingLen := make([]byte, SigLen+1)
+	sigAndPaddingLen := make([]byte, sigLen+1)
 	_, err = io.ReadFull(conn, sigAndPaddingLen)
 	if err != nil {
 		return
@@ -214,17 +214,16 @@ func readClientReply(conn net.Conn) (sig []byte, err error) {
 	if err != nil {
 		return
 	}
-	sig = sigAndPaddingLen[:SigLen]
+	sig = sigAndPaddingLen[:sigLen]
 	return
 }
 func replyClient(conn net.Conn, sig, key []byte) (err error) {
-	tokenId := TokenPool.add(key, nil)
 	paddingLen := intRange(128, 256)
 	padding := make([]byte, paddingLen)
 	readRand(&padding)
-	reply := make([]byte, NonceLen)
+	reply := make([]byte, nonceLen)
 	readRand(&reply)
-	tokenContent, err := TokenPool.get(tokenId)
+	tokenContent, err := TokenPool.getOrCreate(key)
 	if err != nil {
 		return
 	}

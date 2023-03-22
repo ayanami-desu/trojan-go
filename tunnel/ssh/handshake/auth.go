@@ -43,16 +43,28 @@ var (
 	TokenPool *tokenPool
 )
 
-func (p *tokenPool) add(key, c []byte) uint32 {
-	var content []byte
-	if len(c) == 0 {
-		contentLen := intRange(128, 228) // 256 - NonceSize - authentication tag
-		content = make([]byte, contentLen)
-		readRand(&content)
-	} else {
-		content = c
-		//content = make([]byte, len(c))
-		//copy(content, c)
+func (p *tokenPool) getOrCreate(key []byte) ([]byte, error) {
+	p.Lock()
+	defer p.Unlock()
+	if len(key) == 0 {
+		return nil, fmt.Errorf("key can not be nil")
+	}
+	for _, v := range p.Tokens {
+		return v.Content, nil
+	}
+	contentLen := intRange(128, 228) // 256 - NonceSize - authentication tag
+	content := make([]byte, contentLen)
+	readRand(&content)
+	id := binary.LittleEndian.Uint32(content[:4])
+	p.Tokens[id] = &token{
+		Key:     key,
+		Content: content,
+	}
+	return content, nil
+}
+func (p *tokenPool) add(key, content []byte) error {
+	if len(content) == 0 {
+		return fmt.Errorf("token content can not be nil")
 	}
 	id := binary.LittleEndian.Uint32(content[:4])
 	p.Lock()
@@ -61,7 +73,7 @@ func (p *tokenPool) add(key, c []byte) uint32 {
 		Content: content,
 	}
 	p.Unlock()
-	return id
+	return nil
 }
 func (p *tokenPool) remove(id uint32) {
 	p.Lock()
