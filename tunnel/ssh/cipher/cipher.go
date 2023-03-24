@@ -28,7 +28,7 @@ func NewAESGCMBlockCipher(key []byte) (*AESGCMBlockCipher, error) {
 		return nil, err
 	}
 
-	block, err := aes.NewCipher(key)
+	block, err := aes.NewCipher(key[:16])
 	if err != nil {
 		return nil, fmt.Errorf("aes.NewCipher() failed: %w", err)
 	}
@@ -39,8 +39,7 @@ func NewAESGCMBlockCipher(key []byte) (*AESGCMBlockCipher, error) {
 	}
 
 	c := &AESGCMBlockCipher{
-		aead: aead,
-		//enableImplicitNonce: false,
+		aead:                aead,
 		enableImplicitNonce: true,
 		key:                 key,
 		implicitNonce:       nil,
