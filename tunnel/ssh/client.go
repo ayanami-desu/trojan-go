@@ -16,9 +16,6 @@ type Client struct {
 	cancel    context.CancelFunc
 }
 
-func (c *Client) ReturnSessionId() []byte {
-	return c.sessionId
-}
 func (c *Client) ReceiveSessionId(id []byte) {
 	if len(id) == 4 {
 		c.sessionId = id

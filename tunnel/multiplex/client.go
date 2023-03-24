@@ -18,12 +18,14 @@ type Client struct {
 	sessions       map[uint32]*Session
 	sessConfig     SessionConfig
 	maxSessionTime time.Duration
+	sessIdleTime   time.Duration
 	underlay       tunnel.Client
 	ctx            context.Context
 	cancel         context.CancelFunc
 }
 
 func (c *Client) newSession() (*Session, error) {
+	log.Debugf("开始创建会话")
 	connCh := make(chan tunnel.Conn, c.sessConfig.MaxConnNum)
 	errCh := make(chan error)
 	if underlay, ok := c.underlay.(*ssh.Client); ok {
@@ -70,6 +72,7 @@ func (c *Client) DialConn(_ *tunnel.Address, _ tunnel.Tunnel) (tunnel.Conn, erro
 		if err != nil {
 			return nil, common.NewError(" open multiplex stream failed").Base(err)
 		}
+		sess.lastActiveTime = time.Now()
 		return &Conn{
 			rwc: stream,
 		}, nil
@@ -81,18 +84,21 @@ func (c *Client) DialConn(_ *tunnel.Address, _ tunnel.Tunnel) (tunnel.Conn, erro
 			delete(c.sessions, sess.id)
 			continue
 		}
-		if sess.streamCount() == 0 && !sess.IsClosed() {
+		if !sess.IsClosed() && sess.streamCount() == 0 && time.Since(sess.lastActiveTime) > c.sessIdleTime {
 			sess.SetTerminalMsg("timeout")
 			sess.Close()
+			log.Debugf("因不活跃而关闭会话: %v", sess.id)
 			delete(c.sessions, sess.id)
 			continue
 		}
 		if time.Since(sess.createdTime) > c.maxSessionTime {
+			log.Debugf("因超时而跳过会话: %v", sess.id)
 			continue
 		}
 		return createStream(sess)
 	}
 	sess, err := c.newSession()
+	c.sessions[sess.id] = sess
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +120,7 @@ func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
 		underlay: underlay,
 		ctx:      ctx,
 		cancel:   cancel,
+		sessions: make(map[uint32]*Session),
 	}
 	if cfg.Multi.MaxConnNum <= 0 {
 		client.sessConfig.MaxConnNum = 1
@@ -123,6 +130,7 @@ func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
 		client.sessConfig.Singleplex = false
 	}
 	client.maxSessionTime = time.Duration(cfg.Multi.MaxSessionTime) * time.Second
+	client.sessIdleTime = time.Duration(cfg.Multi.SessIdleTime) * time.Second
 	log.Debugf("multiplex client created")
 	return client, nil
 }

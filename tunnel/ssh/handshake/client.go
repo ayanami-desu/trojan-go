@@ -19,7 +19,7 @@ func Client(conn net.Conn) (*Conn, error) {
 	if c, err := TokenPool.pickPub(); err == nil {
 		return fastlyHs(conn, c)
 	}
-	payload, cInfo := makeClientPacketOne(AuthInfo.SessionId)
+	payload, cInfo := makeClientPacketOne()
 	_, err := conn.Write(payload)
 	if err != nil {
 		return nil, common.NewError("failed to send packet").Base(err)
@@ -48,7 +48,7 @@ func Client(conn net.Conn) (*Conn, error) {
 	}
 	return &Conn{
 		Conn:      conn,
-		SessionId: AuthInfo.SessionId,
+		SessionId: cInfo.SessionId,
 		sharedKey: secret,
 		isClient:  true,
 		recvBuf:   make([]byte, maxPayloadSize),
@@ -63,6 +63,9 @@ func fastlyHs(conn net.Conn, pubS []byte) (*Conn, error) {
 		return nil, err
 	}
 	copy(nonce[16:16+ephPubKeyLen], pub[:])
+	if len(AuthInfo.SessionId) != 0 {
+		copy(nonce[16+ephPubKeyLen:16+ephPubKeyLen+sessionIdLen], AuthInfo.SessionId)
+	}
 	secret, err := generateSharedSecret(pri[:], pubS)
 	_, err = conn.Write(nonce)
 	if err != nil {
@@ -70,6 +73,7 @@ func fastlyHs(conn net.Conn, pubS []byte) (*Conn, error) {
 	}
 	return &Conn{
 		Conn:        conn,
+		SessionId:   AuthInfo.SessionId,
 		ephShareKey: secret,
 		ephPri:      pri[:],
 		pubToSend:   nonce[16:],
@@ -78,7 +82,8 @@ func fastlyHs(conn net.Conn, pubS []byte) (*Conn, error) {
 	}, nil
 }
 
-func makeClientPacketOne(id []byte) (totalData []byte, info *selfAuthInfo) {
+func makeClientPacketOne() (totalData []byte, info *selfAuthInfo) {
+	id := AuthInfo.SessionId
 	entropyLen := intRange(minPaddingLen, maxPaddingLen)
 	paddingLen := intRange(minPaddingLen, maxPaddingLen)
 	padding1 := make([]byte, paddingLen)

@@ -109,6 +109,7 @@ func handleFastlyHs(conn net.Conn) (*Conn, error) {
 		return nil, err
 	}
 	pubC := pubData[:ephPubKeyLen]
+	sessionId := pubData[ephPubKeyLen : ephPubKeyLen+sessionIdLen]
 	pri, err := TokenPool.pickPri()
 	if err != nil {
 		msg := makePubInvalidMsg(pubData)
@@ -122,6 +123,7 @@ func handleFastlyHs(conn net.Conn) (*Conn, error) {
 		return nil, err
 	}
 	return &Conn{
+		SessionId:   sessionId,
 		Conn:        conn,
 		ephShareKey: secret,
 		ephPri:      pri,

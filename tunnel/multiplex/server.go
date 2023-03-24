@@ -37,6 +37,7 @@ func (s *Server) acceptConnWorker() {
 			continue
 		}
 		sess.AddConnection(conn)
+		log.Debugf("会话 %v 添加 连接", sess.id)
 		if !exist {
 			go s.acceptStream(sess)
 		}

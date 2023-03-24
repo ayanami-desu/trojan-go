@@ -36,8 +36,9 @@ type SessionConfig struct {
 // controls serialisation and encryption of data sent and received using the supplied Obfuscator, and send and receive
 // data through a manged connection pool filled with underlying connections added to it.
 type Session struct {
-	id          uint32
-	createdTime time.Time
+	id             uint32
+	createdTime    time.Time
+	lastActiveTime time.Time
 	SessionConfig
 
 	// atomic
@@ -76,14 +77,15 @@ type Session struct {
 
 func MakeSession(id uint32, config SessionConfig) *Session {
 	sesh := &Session{
-		id:            id,
-		SessionConfig: config,
-		nextStreamID:  1,
-		acceptCh:      make(chan *Stream, acceptBacklog),
-		recvFramePool: sync.Pool{New: func() interface{} { return &Frame{} }},
-		streams:       map[uint32]*Stream{},
+		id:             id,
+		SessionConfig:  config,
+		createdTime:    time.Now(),
+		lastActiveTime: time.Now(),
+		nextStreamID:   1,
+		acceptCh:       make(chan *Stream, acceptBacklog),
+		recvFramePool:  sync.Pool{New: func() interface{} { return &Frame{} }},
+		streams:        map[uint32]*Stream{},
 	}
-	sesh.createdTime = time.Now()
 	if config.MsgOnWireSizeLimit <= 0 {
 		sesh.MsgOnWireSizeLimit = defaultMaxOnWireSize
 	}
