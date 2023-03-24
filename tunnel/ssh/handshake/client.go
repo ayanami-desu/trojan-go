@@ -13,10 +13,13 @@ import (
 )
 
 func Client(conn net.Conn) (*Conn, error) {
-	if c, err := TokenPool.pick(); err == nil {
+	conn.SetReadDeadline(time.Now().Add(readTimeOut))
+	defer conn.SetReadDeadline(time.Time{})
+
+	if c, err := TokenPool.pickPub(); err == nil {
 		return fastlyHs(conn, c)
 	}
-	payload, cInfo := makeClientPacketOne(AuthInfo.SessionId, nil)
+	payload, cInfo := makeClientPacketOne(AuthInfo.SessionId)
 	_, err := conn.Write(payload)
 	if err != nil {
 		return nil, common.NewError("failed to send packet").Base(err)
@@ -30,7 +33,7 @@ func Client(conn net.Conn) (*Conn, error) {
 	if err := replyServer(conn, sig); err != nil {
 		return nil, common.NewError("client failed to reply sig").Base(err)
 	}
-	serverSig, decryptedToken, err := readServerReply(conn, secret)
+	serverSig, decryptedPub, err := readServerReply(conn, secret)
 	if err != nil {
 		return nil, common.NewError("client failed to read server sig").Base(err)
 	}
@@ -38,56 +41,48 @@ func Client(conn net.Conn) (*Conn, error) {
 		err = fmt.Errorf("服务端签名验证未通过")
 		return nil, err
 	}
-	if err := TokenPool.add(secret, decryptedToken); err != nil {
+	//清空之前储存的服务端公钥
+	//TokenPool.clear()
+	if err := TokenPool.add(decryptedPub); err != nil {
 		return nil, err
 	}
 	return &Conn{
 		Conn:      conn,
 		SessionId: AuthInfo.SessionId,
-		SharedKey: secret,
+		sharedKey: secret,
 		isClient:  true,
 		recvBuf:   make([]byte, maxPayloadSize),
 	}, nil
 }
-func fastlyHs(conn net.Conn, token []byte) (*Conn, error) {
-	payload, info := makeClientPacketOne(AuthInfo.SessionId, token)
-	_, err := conn.Write(payload)
-	if err != nil {
-		return nil, common.NewError("failed to send packet").Base(err)
-	}
-	secret, err := rhServerFastPacket(conn, info)
+func fastlyHs(conn net.Conn, pubS []byte) (*Conn, error) {
+	nonce := make([]byte, sigLen+16)
+	readRand(&nonce)
+	nonce[15] = byte(2 * intn(128)) //偶数
+	pri, pub, err := generateKey()
 	if err != nil {
 		return nil, err
 	}
+	copy(nonce[16:16+ephPubKeyLen], pub[:])
+	secret, err := generateSharedSecret(pri[:], pubS)
+	_, err = conn.Write(nonce)
+	if err != nil {
+		return nil, fmt.Errorf("client failed to send pub: %w", err)
+	}
 	return &Conn{
-		Conn:      conn,
-		SessionId: info.SessionId,
-		SharedKey: secret,
-		isClient:  true,
-		recvBuf:   make([]byte, maxPayloadSize),
+		Conn:        conn,
+		ephShareKey: secret,
+		ephPri:      pri[:],
+		pubToSend:   nonce[16:],
+		isClient:    true,
+		recvBuf:     make([]byte, maxPayloadSize),
 	}, nil
 }
 
-func makeClientPacketOne(id, token []byte) (totalData []byte, info *selfAuthInfo) {
-	fastly := true
-	if len(token) == 0 {
-		fastly = false
-	}
-	var entropy []byte
-	var entropyLen int
-	if fastly {
-		entropyLen = len(token)
-		entropy = token
-		//entropy = make([]byte, entropyLen)
-		//copy(entropy, token)
-	} else {
-		entropyLen = intRange(minPaddingLen, maxPaddingLen)
-		entropy = make([]byte, entropyLen)
-		readRand(&entropy)
-	}
+func makeClientPacketOne(id []byte) (totalData []byte, info *selfAuthInfo) {
+	entropyLen := intRange(minPaddingLen, maxPaddingLen)
 	paddingLen := intRange(minPaddingLen, maxPaddingLen)
-	log.Debugf("paddingLen is %d", paddingLen)
 	padding1 := make([]byte, paddingLen)
+	entropy := make([]byte, entropyLen)
 	sessionId := make([]byte, 4)
 	if len(id) == 0 {
 		readRand(&sessionId)
@@ -98,6 +93,7 @@ func makeClientPacketOne(id, token []byte) (totalData []byte, info *selfAuthInfo
 	totalData = make([]byte, nonceLen)
 	readRand(&totalData)
 	readRand(&padding1)
+	readRand(&entropy)
 	readRand(&padding2)
 	ephPri, ephPub, err := generateKey()
 	if err != nil {
@@ -112,11 +108,7 @@ func makeClientPacketOne(id, token []byte) (totalData []byte, info *selfAuthInfo
 	dataLen := make([]byte, 4)
 	dataLen[0] = byte(entropyLen)
 	binary.LittleEndian.PutUint16(dataLen[1:3], uint16(2*paddingLen+entropyLen))
-	if fastly {
-		dataLen[3] = byte(2 * intn(128)) //偶数
-	} else {
-		dataLen[3] = byte(2*intn(128) - 1) //奇数
-	}
+	dataLen[3] = byte(2*intn(128) - 1) //奇数
 	totalData = append(totalData, dataLen...)
 	totalData = append(totalData, padding1...)
 	totalData = append(totalData, sessionId...)
@@ -127,8 +119,6 @@ func makeClientPacketOne(id, token []byte) (totalData []byte, info *selfAuthInfo
 	return
 }
 func readServerPacketOne(conn net.Conn) (buf []byte, err error) {
-	conn.SetReadDeadline(time.Now().Add(readTimeOut))
-	defer conn.SetReadDeadline(time.Time{})
 
 	nonce := make([]byte, nonceLen)
 	_, err = io.ReadFull(conn, nonce)
@@ -166,7 +156,7 @@ func handleServerPacketOne(buf []byte, cInfo *selfAuthInfo) (H, secret []byte, e
 		SessionId: SessionId,
 		EphPub:    ephPubS,
 	}
-	secret, err = generateSharedSecret(cInfo.EphPri, sInfo.EphPub)
+	secret, err = generateSharedSecret(cInfo.EphPri[:], sInfo.EphPub[:])
 	if err != nil {
 		err = common.NewError("error in generating shared secret").Base(err)
 		return
@@ -183,37 +173,33 @@ func handleServerPacketOne(buf []byte, cInfo *selfAuthInfo) (H, secret []byte, e
 	return
 }
 
-func readServerReply(conn net.Conn, key []byte) (sig, token []byte, err error) {
-	conn.SetReadDeadline(time.Now().Add(readTimeOut))
-	defer conn.SetReadDeadline(time.Time{})
-
+func readServerReply(conn net.Conn, key []byte) (sig, pub []byte, err error) {
 	nonce := make([]byte, nonceLen)
 	_, err = io.ReadFull(conn, nonce)
 	if err != nil {
 		return
 	}
-	sigAndDataLen := make([]byte, sigLen+2)
-	_, err = io.ReadFull(conn, sigAndDataLen)
+	sigAndPaddingLen := make([]byte, sigLen+1)
+	_, err = io.ReadFull(conn, sigAndPaddingLen)
 	if err != nil {
 		return
 	}
-	paddingLen := int(sigAndDataLen[sigLen])
-	tokenLen := int(sigAndDataLen[sigLen+1])
+	paddingLen := int(sigAndPaddingLen[sigLen])
 	padding := make([]byte, paddingLen)
 	_, err = io.ReadFull(conn, padding)
 	if err != nil {
 		return
 	}
-	encryptedToken := make([]byte, tokenLen)
-	_, err = io.ReadFull(conn, encryptedToken)
+	encryptedPub := make([]byte, ephPubKeyLen+authTagSize)
+	_, err = io.ReadFull(conn, encryptedPub)
 	if err != nil {
 		return
 	}
-	token, err = decrypt(encryptedToken, key)
+	pub, err = decrypt(encryptedPub, key)
 	if err != nil {
 		return
 	}
-	sig = sigAndDataLen[:sigLen]
+	sig = sigAndPaddingLen[:sigLen]
 	return
 }
 func replyServer(conn net.Conn, sig []byte) (err error) {

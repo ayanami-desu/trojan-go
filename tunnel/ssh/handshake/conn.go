@@ -15,9 +15,15 @@ import (
 
 type Conn struct {
 	net.Conn
-	SessionId  []byte
-	isClient   bool
-	SharedKey  []byte
+	SessionId   []byte
+	isClient    bool
+	changeKey   bool
+	sharedKey   []byte
+	ephShareKey []byte
+	pubToSend   []byte
+	pubReceived []byte
+	// ephPri 客户端生成的私钥
+	ephPri     []byte
 	sendMutex  sync.Mutex // mutex used when write data to the connection
 	recvMutex  sync.Mutex // mutex used when read data from the connection
 	recv       cipher.BlockCipher
@@ -69,26 +75,67 @@ func (s *Conn) readInternal(b []byte) (n int, err error) {
 	//}
 	// Read encrypted payload length.
 	readLen := 2 + cipher.DefaultOverhead
-	if s.recv == nil {
+	if s.recv == nil || s.changeKey {
 		// For the first Read, also include nonce.
 		readLen += cipher.DefaultNonceSize
 	}
+
+	if s.recv == nil {
+		if len(s.sharedKey) != 0 {
+			s.recv, err = cipher.NewAESGCMBlockCipher(s.sharedKey)
+			if err != nil {
+				log.Fatalf("创建读加密块失败: %v", err)
+			}
+		} else {
+			if s.isClient {
+				// 客户端进行0rtt握手, 读取服务端临时公钥
+				pubData := make([]byte, sigLen+16)
+				n, err = io.ReadFull(s.Conn, pubData)
+				if err != nil {
+					return 0, err
+				}
+				if pubData[15] == byte(255) {
+					TokenPool.clear()
+					if verifyServerMsg(s.pubToSend, pubData) {
+						return 0, fmt.Errorf("使用的服务端临时公钥已过期")
+					} else {
+						return 0, fmt.Errorf("无法认证服务端身份, 但什么也做不了")
+					}
+				}
+				pubC := pubData[16 : 16+ephPubKeyLen]
+				// 这是最终的共享密钥
+				secret, err := generateSharedSecret(s.ephPri, pubC)
+				if err != nil {
+					return 0, err
+				}
+				s.sharedKey = secret
+				s.changeKey = true
+			} else {
+				//服务端处理0rtt握手, 读取客户端临时公钥
+				s.recv, err = cipher.NewAESGCMBlockCipher(s.ephShareKey)
+				if err != nil {
+					log.Fatalf("创建读加密块失败: %v", err)
+				}
+			}
+		}
+	}
+	if s.changeKey {
+		s.recv, err = cipher.NewAESGCMBlockCipher(s.sharedKey)
+		if err != nil {
+			log.Fatalf("创建读加密块失败: %v", err)
+		}
+		s.changeKey = false
+	}
+
 	encryptedLen := make([]byte, readLen)
 	if _, err := io.ReadFull(s.Conn, encryptedLen); err != nil {
 		return 0, fmt.Errorf("read %d bytes failed when reading encryptedLen: %w", readLen, err)
 	}
+
 	var decryptedLen []byte
-
-	if s.recv == nil {
-		s.recv, err = cipher.NewAESGCMBlockCipher(s.SharedKey[:16])
-		if err != nil {
-			log.Fatalf("创建读加密块失败: %v", err)
-		}
-	}
-
 	decryptedLen, err = s.recv.Decrypt(encryptedLen)
 	if err != nil {
-		return 0, fmt.Errorf("decrypt() failed: %w", err)
+		return 0, fmt.Errorf("decrypted len failed: %w", err)
 	}
 	readLen = int(binary.LittleEndian.Uint16(decryptedLen))
 	if readLen > maxPayloadSize {
@@ -103,7 +150,7 @@ func (s *Conn) readInternal(b []byte) (n int, err error) {
 	}
 	decryptedPayload, err := s.recv.Decrypt(encryptedPayload)
 	if err != nil {
-		return 0, fmt.Errorf("decrypt() failed: %w", err)
+		return 0, fmt.Errorf("decrypted payload failed: %w", err)
 	}
 	// Extract useful payload from decrypted payload.
 	if len(decryptedPayload) < payloadOverhead {
@@ -173,12 +220,53 @@ func (s *Conn) writeChunk(b []byte) (n int, err error) {
 
 	// Create send block cipher if needed.
 	if s.send == nil {
-		s.send, err = cipher.NewAESGCMBlockCipher(s.SharedKey[:16])
+		if len(s.sharedKey) != 0 {
+			s.send, err = cipher.NewAESGCMBlockCipher(s.sharedKey)
+			if err != nil {
+				log.Fatalf("创建写加密块失败: %v", err)
+			}
+		} else {
+			if s.isClient {
+				//客户端开始0rtt握手, 发送临时公钥
+				s.send, err = cipher.NewAESGCMBlockCipher(s.ephShareKey)
+				if err != nil {
+					log.Fatalf("创建写加密块失败: %v", err)
+				}
+				//n, err = s.Conn.Write(s.pubToSend)
+				//if err != nil {
+				//	return 0, fmt.Errorf("client failed to send pub: %w", err)
+				//}
+			} else {
+				//服务端处理0rtt握手, 发送临时公钥
+				pri, pub, err := generateKey()
+				if err != nil {
+					return 0, nil
+				}
+				// 这是最终的共享密钥
+				secret, err := generateSharedSecret(pri[:], s.pubReceived)
+				if err != nil {
+					return 0, nil
+				}
+				nonce := make([]byte, sigLen+16)
+				readRand(&nonce)
+				copy(nonce[16:16+ephPubKeyLen], pub[:])
+				n, err = s.Conn.Write(nonce)
+				if err != nil {
+					return 0, fmt.Errorf("server failed to send pub: %w", err)
+				}
+
+				s.sharedKey = secret
+				s.changeKey = true
+			}
+		}
+	}
+	if s.changeKey {
+		s.send, err = cipher.NewAESGCMBlockCipher(s.sharedKey)
 		if err != nil {
 			log.Fatalf("创建写加密块失败: %v", err)
 		}
+		s.changeKey = false
 	}
-
 	// Create encrypted payload length.
 	plaintextLen := make([]byte, 2)
 	binary.LittleEndian.PutUint16(plaintextLen, uint16(len(payload)))

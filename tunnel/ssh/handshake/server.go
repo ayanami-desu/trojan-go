@@ -13,17 +13,68 @@ import (
 )
 
 func Server(conn net.Conn) (*Conn, error) {
-	clientInfo, err := readClientPacket(conn)
-	if err != nil {
-		return nil, common.NewError("failed to read client packet ").Base(err)
-	}
-	sInfo, cInfo, err := handleClientPacket(clientInfo)
+	conn.SetReadDeadline(time.Now().Add(readTimeOut))
+	defer conn.SetReadDeadline(time.Time{})
+
+	nonce := make([]byte, nonceLen)
+	_, err := io.ReadFull(conn, nonce)
 	if err != nil {
 		return nil, err
 	}
-	if cInfo.IsFastly {
-		return handleFastHs(conn, sInfo, cInfo)
+
+	buf := make([]byte, 1024)
+	_, err = io.ReadFull(conn, buf[:4])
+	if err != nil {
+		err = fmt.Errorf("read length from connection fail: %v", err)
+		return nil, err
 	}
+	// 偶数则标志0rtt握手
+	if int(buf[3])%2 == 0 {
+		return handleFastlyHs(conn)
+	}
+	randomLen := int(binary.LittleEndian.Uint16(buf[1:3]))
+	if randomLen > maxRandomDataSize {
+		err = fmt.Errorf("收到的服务端握手包长度(%v)超过限制", randomLen)
+		return nil, err
+	}
+	dataLength := clientPacketHeadSize + randomLen + ephPubKeyLen + sessionIdLen
+	_, err = io.ReadFull(conn, buf[4:dataLength])
+	if err != nil {
+		err = fmt.Errorf("read left content from connection fail: %v", err)
+		return nil, err
+	}
+	entropyLen := int(buf[0])
+	paddingLen := (int(binary.LittleEndian.Uint16(buf[1:3])) - entropyLen) / 2
+	offset := 4 + paddingLen
+	SessionId := buf[offset : offset+sessionIdLen]
+	offset += sessionIdLen
+	var ephPubC [32]byte
+	copy(ephPubC[:], buf[offset:offset+ephPubKeyLen])
+	//开始验证目标公钥
+	ephPriS, ephPubS, err := generateKey()
+	if err != nil {
+		err = common.NewError("failed to generate ephemeral key pair").Base(err)
+		return nil, err
+	}
+	var secret []byte
+	secret, err = generateSharedSecret(ephPriS[:], ephPubC[:])
+	if err != nil {
+		err = common.NewError("error in generating shared secret").Base(err)
+		return nil, err
+	}
+	sInfo := &selfAuthInfo{
+		EphPri:    ephPriS,
+		EphPub:    ephPubS,
+		SharedKey: secret,
+	}
+	offset += ephPubKeyLen
+	entropy := buf[offset : offset+entropyLen]
+	cInfo := &otherAuthInfo{
+		Entropy:   entropy,
+		SessionId: SessionId,
+		EphPub:    ephPubC,
+	}
+
 	totalData := makeServerPacketOne(sInfo)
 	_, err = conn.Write(totalData)
 	if err != nil {
@@ -45,116 +96,41 @@ func Server(conn net.Conn) (*Conn, error) {
 	return &Conn{
 		Conn:      conn,
 		SessionId: cInfo.SessionId,
-		SharedKey: sInfo.SharedKey,
+		sharedKey: sInfo.SharedKey,
 		isClient:  false,
 		recvBuf:   make([]byte, maxPayloadSize),
 	}, nil
 }
-func handleFastHs(conn net.Conn, sInfo *selfAuthInfo, cInfo *otherAuthInfo) (*Conn, error) {
-	id := binary.LittleEndian.Uint32(cInfo.Entropy[:4])
-	if exist := TokenPool.tryGet(id); exist {
-		h := crypto.SHA256.New()
-		writeString(h, cInfo.SessionId)
-		writeString(h, cInfo.EphPub[:])
-		writeString(h, cInfo.Entropy)
-		H := h.Sum(nil)
-		sig := ed25519.Sign(AuthInfo.PrivateKey, H)
-		totalData := makeServerPacketOne(sInfo)
-		totalData = append(totalData, sig...)
-		tokenContent, err := TokenPool.getOrCreate(sInfo.SharedKey)
-		if err != nil {
-			return nil, err
+func handleFastlyHs(conn net.Conn) (*Conn, error) {
+	//此前已读取16字节
+	pubData := make([]byte, sigLen)
+	_, err := io.ReadFull(conn, pubData)
+	if err != nil {
+		return nil, err
+	}
+	pubC := pubData[:ephPubKeyLen]
+	pri, err := TokenPool.pickPri()
+	if err != nil {
+		msg := makePubInvalidMsg(pubData)
+		if _, err := conn.Write(msg); err != nil {
+			log.Errorf("向服务端返回公钥错误信息时出错: %v", err)
 		}
-		encryptedToken, err := encrypte(tokenContent, sInfo.SharedKey)
-		if err != nil {
-			return nil, err
-		}
-		totalData = append(totalData, byte(len(encryptedToken)))
-		totalData = append(totalData, encryptedToken...)
-		if _, err := conn.Write(totalData); err != nil {
-			return nil, err
-		}
-		return &Conn{
-			Conn:      conn,
-			SessionId: cInfo.SessionId,
-			SharedKey: sInfo.SharedKey,
-			isClient:  false,
-			recvBuf:   make([]byte, maxPayloadSize),
-		}, nil
+		return nil, err
 	}
-	return nil, fmt.Errorf("不存在的token")
-}
-func readClientPacket(conn net.Conn) (buf []byte, err error) {
-	conn.SetReadDeadline(time.Now().Add(readTimeOut))
-	defer conn.SetReadDeadline(time.Time{})
-
-	nonce := make([]byte, nonceLen)
-	_, err = io.ReadFull(conn, nonce)
+	secret, err := generateSharedSecret(pri, pubC)
 	if err != nil {
-		return
+		return nil, err
 	}
-
-	buf = make([]byte, 1024)
-	_, err = io.ReadFull(conn, buf[:4])
-	if err != nil {
-		err = fmt.Errorf("read length from connection fail: %v", err)
-		return
-	}
-	randomLen := int(binary.LittleEndian.Uint16(buf[1:3]))
-	if randomLen > maxRandomDataSize {
-		err = fmt.Errorf("收到的服务端握手包长度(%v)超过限制", randomLen)
-		return
-	}
-	dataLength := clientPacketHeadSize + randomLen + ephPubKeyLen + sessionIdLen
-	_, err = io.ReadFull(conn, buf[4:dataLength])
-	if err != nil {
-		err = fmt.Errorf("read left content from connection fail: %v", err)
-		return
-	}
-	return
-}
-func handleClientPacket(buf []byte) (sInfo *selfAuthInfo, cInfo *otherAuthInfo, err error) {
-	entropyLen := int(buf[0])
-	paddingLen := (int(binary.LittleEndian.Uint16(buf[1:3])) - entropyLen) / 2
-	offset := 4 + paddingLen
-	SessionId := buf[offset : offset+sessionIdLen]
-	offset += sessionIdLen
-	var ephPubC [32]byte
-	copy(ephPubC[:], buf[offset:offset+ephPubKeyLen])
-	//开始验证目标公钥
-	ephPriS, ephPubS, err := generateKey()
-	if err != nil {
-		err = common.NewError("failed to generate ephemeral key pair").Base(err)
-		return
-	}
-	var secret []byte
-	secret, err = generateSharedSecret(ephPriS, ephPubC)
-	if err != nil {
-		err = common.NewError("error in generating shared secret").Base(err)
-		return
-	}
-	sInfo = &selfAuthInfo{
-		EphPri:    ephPriS,
-		EphPub:    ephPubS,
-		SharedKey: secret,
-	}
-	offset += ephPubKeyLen
-	entropy := buf[offset : offset+entropyLen]
-	isFastly := false
-	if int(buf[3])%2 == 0 {
-		isFastly = true
-	}
-	cInfo = &otherAuthInfo{
-		Entropy:   entropy,
-		SessionId: SessionId,
-		EphPub:    ephPubC,
-		IsFastly:  isFastly,
-	}
-	return
+	return &Conn{
+		Conn:        conn,
+		ephShareKey: secret,
+		ephPri:      pri,
+		pubReceived: pubC,
+		recvBuf:     make([]byte, maxPayloadSize),
+	}, nil
 }
 func makeServerPacketOne(sInfo *selfAuthInfo) (totalData []byte) {
 	paddingLen := intRange(minPaddingLen, maxPaddingLen)
-	log.Debugf("paddingLen is %d", paddingLen)
 	entropyLen := intRange(minPaddingLen, maxPaddingLen)
 	padding1 := make([]byte, paddingLen)
 	sessionId := make([]byte, sessionIdLen)
@@ -195,9 +171,6 @@ func generateHash(sInfo *selfAuthInfo, cInfo *otherAuthInfo) (H []byte) {
 	return
 }
 func readClientReply(conn net.Conn) (sig []byte, err error) {
-	conn.SetReadDeadline(time.Now().Add(readTimeOut))
-	defer conn.SetReadDeadline(time.Time{})
-
 	nonce := make([]byte, nonceLen)
 	_, err = io.ReadFull(conn, nonce)
 	if err != nil {
@@ -223,19 +196,15 @@ func replyClient(conn net.Conn, sig, key []byte) (err error) {
 	readRand(&padding)
 	reply := make([]byte, nonceLen)
 	readRand(&reply)
-	tokenContent, err := TokenPool.getOrCreate(key)
-	if err != nil {
-		return
-	}
-	encryptedToken, err := encrypte(tokenContent, key)
+	pub := TokenPool.pickOrCreatePub()
+	encryptedPub, err := encrypte(pub, key)
 	if err != nil {
 		return
 	}
 	reply = append(reply, sig...)
 	reply = append(reply, byte(paddingLen))
-	reply = append(reply, byte(len(encryptedToken)))
 	reply = append(reply, padding...)
-	reply = append(reply, encryptedToken...)
+	reply = append(reply, encryptedPub...)
 	_, err = conn.Write(reply)
 	if err != nil {
 		return

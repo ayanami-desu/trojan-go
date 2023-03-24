@@ -12,6 +12,7 @@ const (
 	sessionIdLen         = 4
 	sigLen               = 64
 	maxRandomDataSize    = 3 * maxPaddingLen
+	authTagSize          = 16
 	maxPayloadSize       = 1024 * 16
 	payloadOverhead      = 4
 	maxWriteChunkSize    = maxPayloadSize - payloadOverhead

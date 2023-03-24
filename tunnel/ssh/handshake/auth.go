@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"encoding/binary"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"sync"
 )
 
@@ -33,8 +34,8 @@ type tokenPool struct {
 	Tokens map[uint32]*token
 }
 type token struct {
-	Key     []byte
-	Content []byte
+	Pri []byte
+	Pub []byte
 }
 
 var (
@@ -42,71 +43,62 @@ var (
 	TokenPool *tokenPool
 )
 
-func (p *tokenPool) getOrCreate(key []byte) ([]byte, error) {
+func (p *tokenPool) clear() {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-	if len(key) == 0 {
-		return nil, fmt.Errorf("key can not be nil")
-	}
-	for _, v := range p.Tokens {
-		return v.Content, nil
-	}
-	contentLen := intRange(128, 228) // 256 - NonceSize - authentication tag
-	content := make([]byte, contentLen)
-	readRand(&content)
-	id := binary.LittleEndian.Uint32(content[:4])
-	p.Tokens[id] = &token{
-		Key:     key,
-		Content: content,
-	}
-	return content, nil
+	p.Tokens = make(map[uint32]*token)
+	p.mu.Unlock()
 }
-func (p *tokenPool) add(key, content []byte) error {
-	if len(content) == 0 {
-		return fmt.Errorf("token content can not be nil")
+func (p *tokenPool) add(pub []byte) error {
+	if len(pub) == 0 {
+		return fmt.Errorf("pub can not be nil")
 	}
-	id := binary.LittleEndian.Uint32(content[:4])
+	id := binary.LittleEndian.Uint32(pub[:4])
 	p.mu.Lock()
 	p.Tokens[id] = &token{
-		Key:     key,
-		Content: content,
+		Pub: pub,
 	}
 	p.mu.Unlock()
 	return nil
 }
-func (p *tokenPool) remove(id uint32) {
-	p.mu.Lock()
-	delete(p.Tokens, id)
-	p.mu.Unlock()
+func (p *tokenPool) create() uint32 {
+	//调用此函数时应加锁
+	pri, pub, err := generateKey()
+	if err != nil {
+		log.Fatal(err)
+	}
+	id := binary.LittleEndian.Uint32(pub[:4])
+	p.Tokens[id] = &token{
+		Pri: pri[:],
+		Pub: pub[:],
+	}
+	return id
 }
-func (p *tokenPool) pick() ([]byte, error) {
+func (p *tokenPool) pickPub() ([]byte, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	for id, v := range p.Tokens {
-		delete(p.Tokens, id)
-		return v.Content, nil
+	for _, v := range p.Tokens {
+		return v.Pub, nil
 	}
 	return nil, fmt.Errorf("no token exists")
 }
-func (p *tokenPool) get(id uint32) ([]byte, error) {
+func (p *tokenPool) pickOrCreatePub() []byte {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if t, ok := p.Tokens[id]; ok {
-		return t.Content, nil
-	} else {
-		return nil, fmt.Errorf("target %d token does not exist", id)
+	for _, v := range p.Tokens {
+		return v.Pub
 	}
+	id := p.create()
+	return p.Tokens[id].Pub
 }
-func (p *tokenPool) tryGet(id uint32) bool {
+func (p *tokenPool) pickPri() ([]byte, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if _, ok := p.Tokens[id]; ok {
-		delete(p.Tokens, id)
-		return ok
-	} else {
-		return !ok
+	for _, v := range p.Tokens {
+		return v.Pri, nil
 	}
+	return nil, fmt.Errorf("no pri key exists")
 }
+
 func encrypte(clearText, key []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {

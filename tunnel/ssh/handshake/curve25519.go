@@ -22,8 +22,8 @@ func generateKey() (pri, pub [32]byte, err error) {
 	return
 }
 
-func generateSharedSecret(pri, pub [32]byte) ([]byte, error) {
-	return curve25519.X25519(pri[:], pub[:])
+func generateSharedSecret(pri, pub []byte) ([]byte, error) {
+	return curve25519.X25519(pri, pub)
 }
 
 func writeString(w io.Writer, s []byte) {
