@@ -28,10 +28,12 @@ for file in $FILES; do
     if [ "$extension" == "exe" ]; then
       upx -o "trojan.exe" "$file"
       zip -q "$zip_name.zip" "trojan.exe"
+      rm -f trojan.exe
     else
       upx -o "trojan" "$file"
       zip -q "$zip_name.zip" "trojan"
+      rm -f trojan
     fi
-    rm -rf "$file"
+    rm -f "$file"
   fi
 done

@@ -8,9 +8,10 @@ require (
 	github.com/sagernet/smux v0.0.0-20230312102458-337ec2a5af37
 	github.com/shadowsocks/go-shadowsocks2 v0.1.5
 	github.com/sirupsen/logrus v1.9.0
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.8.2
 	github.com/txthinking/socks5 v0.0.0-20230307062227-0e1677eca4ba
 	github.com/v2fly/v2ray-core/v4 v4.45.2
+	github.com/xtls/xray-core v1.8.0
 	golang.org/x/crypto v0.7.0
 	golang.org/x/net v0.8.0
 	golang.org/x/time v0.3.0
