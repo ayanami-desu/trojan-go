@@ -65,12 +65,7 @@ func (c *Client) cleanLoop() {
 		case <-time.After(checkDuration):
 			c.clientPoolLock.Lock()
 			for id, info := range c.clientPool {
-				if info.client.IsClosed() {
-					info.client.Close()
-					info.underlayConn.Close()
-					delete(c.clientPool, id)
-					log.Info("mux client", id, "is dead")
-				} else if info.client.NumStreams() == 0 && time.Since(info.lastActiveTime) > c.timeout {
+				if info.client.NumStreams() == 0 && time.Since(info.lastActiveTime) > c.timeout {
 					info.client.Close()
 					info.underlayConn.Close()
 					delete(c.clientPool, id)
@@ -179,21 +174,21 @@ func (c *Client) DialPacket(tunnel.Tunnel) (tunnel.PacketConn, error) {
 }
 
 func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
-	clientConfig := config.FromContext(ctx, Name).(*Config)
+	cfg := config.FromContext(ctx, Name).(*Config)
 	ctx, cancel := context.WithCancel(ctx)
-	if clientConfig.Mux.Concurrency <= 0 {
+	if cfg.Mux.Concurrency <= 0 {
 		log.Fatal("concurrency can not be minus")
 	}
 	client := &Client{
 		underlay:    underlay,
-		concurrency: clientConfig.Mux.Concurrency,
-		timeout:     time.Duration(clientConfig.Mux.IdleTimeout) * time.Second,
-		maxConnTime: time.Duration(clientConfig.Mux.MaxConnTime) * time.Second,
+		concurrency: cfg.Mux.Concurrency,
+		timeout:     time.Duration(cfg.Mux.IdleTimeout) * time.Second,
+		maxConnTime: time.Duration(cfg.Mux.MaxConnTime) * time.Second,
 		ctx:         ctx,
 		cancel:      cancel,
 		clientPool:  make(map[muxID]*smuxClientInfo),
 	}
-	//go client.cleanLoop()
+	go client.cleanLoop()
 	log.Debugf("mux client created")
 	return client, nil
 }

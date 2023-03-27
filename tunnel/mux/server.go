@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"time"
 
 	"github.com/sagernet/smux"
 
@@ -43,7 +44,7 @@ func (s *Server) acceptConnWorker() {
 			go func(session *smux.Session, conn tunnel.Conn) {
 				defer session.Close()
 				for {
-					stream, err := session.Accept()
+					stream, err := session.AcceptStream()
 					if err != nil {
 						if errors.Is(err, io.EOF) {
 							log.Info(err)
@@ -52,10 +53,20 @@ func (s *Server) acceptConnWorker() {
 						}
 						return
 					}
+					buf := make([]byte, 8)
+					stream.SetReadDeadline(time.Now().Add(time.Second))
+					_, err = io.ReadFull(stream, buf)
+					if err != nil {
+						stream.Close()
+						log.Errorf("broken stream")
+						continue
+					}
+					stream.SetReadDeadline(time.Time{})
 					select {
 					case s.connChan <- &Conn{
 						rwc:  stream,
 						Conn: conn,
+						buf:  buf,
 					}:
 					case <-s.ctx.Done():
 						log.Debug("exiting")
