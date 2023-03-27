@@ -8,10 +8,6 @@ import (
 	"sync"
 )
 
-//var (
-//	_ BlockCipher = &AESGCMBlockCipher{}
-//)
-
 // AESGCMBlockCipher implements BlockCipher interface with AES-GCM algorithm.
 type AESGCMBlockCipher struct {
 	aead                cipher.AEAD
@@ -19,7 +15,6 @@ type AESGCMBlockCipher struct {
 	key                 []byte
 	implicitNonce       []byte
 	mu                  sync.Mutex
-	//ctx                 BlockContext
 }
 
 // NewAESGCMBlockCipher creates a new cipher with the supplied key.
@@ -28,7 +23,7 @@ func NewAESGCMBlockCipher(key []byte) (*AESGCMBlockCipher, error) {
 		return nil, err
 	}
 
-	block, err := aes.NewCipher(key[:16])
+	block, err := aes.NewCipher(key[:DefaultKeyLen])
 	if err != nil {
 		return nil, fmt.Errorf("aes.NewCipher() failed: %w", err)
 	}
@@ -139,7 +134,6 @@ func (c *AESGCMBlockCipher) Clone() BlockCipher {
 		newCipher.implicitNonce = make([]byte, len(c.implicitNonce))
 		copy(newCipher.implicitNonce, c.implicitNonce)
 	}
-	//newCipher.ctx = c.ctx
 	return newCipher
 }
 
@@ -157,14 +151,6 @@ func (c *AESGCMBlockCipher) IsStateless() bool {
 	defer c.mu.Unlock()
 	return !c.enableImplicitNonce
 }
-
-//func (c *AESGCMBlockCipher) BlockContext() BlockContext {
-//	return c.ctx
-//}
-//
-//func (c *AESGCMBlockCipher) SetBlockContext(bc BlockContext) {
-//	c.ctx = bc
-//}
 
 // newNonce generates a new nonce.
 func (c *AESGCMBlockCipher) newNonce() ([]byte, error) {
