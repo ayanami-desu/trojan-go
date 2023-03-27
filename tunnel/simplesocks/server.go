@@ -2,8 +2,6 @@ package simplesocks
 
 import (
 	"context"
-	"fmt"
-
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/tunnel"
 	"github.com/p4gefau1t/trojan-go/tunnel/trojan"
@@ -36,12 +34,13 @@ func (s *Server) acceptLoop() {
 			}
 			continue
 		}
-		metadata := new(tunnel.Metadata)
-		if err := metadata.ReadFrom(conn); err != nil {
-			log.Errorf(common.NewError("simplesocks server faield to read header").Base(err).Error())
-			conn.Close()
-			continue
-		}
+		//metadata := new(tunnel.Metadata)
+		metadata := conn.Metadata()
+		//if err := metadata.ReadFrom(conn); err != nil {
+		//	log.Errorf(common.NewError("simplesocks server faield to read header").Base(err).Error())
+		//	conn.Close()
+		//	continue
+		//}
 		switch metadata.Command {
 		case Connect:
 			s.connChan <- &Conn{
@@ -55,7 +54,7 @@ func (s *Server) acceptLoop() {
 				},
 			}
 		default:
-			log.Errorf(common.NewError(fmt.Sprintf("simplesocks unknown command %d", metadata.Command)).Error())
+			log.Errorf("simplesocks unknown command %d", metadata.Command)
 			conn.Close()
 		}
 	}
@@ -84,7 +83,7 @@ func NewServer(ctx context.Context, underlay tunnel.Server) (*Server, error) {
 	server := &Server{
 		underlay:   underlay,
 		ctx:        ctx,
-		connChan:   make(chan tunnel.Conn, 128),
+		connChan:   make(chan tunnel.Conn, 32),
 		packetChan: make(chan tunnel.PacketConn, 32),
 		cancel:     cancel,
 	}

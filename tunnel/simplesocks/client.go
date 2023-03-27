@@ -19,7 +19,7 @@ type Client struct {
 }
 
 func (c *Client) DialConn(addr *tunnel.Address, t tunnel.Tunnel) (tunnel.Conn, error) {
-	conn, err := c.underlay.DialConn(nil, &Tunnel{})
+	conn, err := c.underlay.DialConn(addr, &Tunnel{})
 	if err != nil {
 		return nil, common.NewError("simplesocks failed to dial using underlying tunnel").Base(err)
 	}
