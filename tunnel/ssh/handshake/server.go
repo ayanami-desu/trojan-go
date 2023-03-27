@@ -29,7 +29,7 @@ func Server(conn net.Conn) (*Conn, error) {
 		return nil, err
 	}
 	// 偶数则标志0rtt握手
-	if int(buf[3])%2 == 0 {
+	if int(buf[3])%2 == 0 && AuthInfo.FastHkEnable {
 		return handleFastlyHs(conn)
 	}
 	randomLen := int(binary.LittleEndian.Uint16(buf[1:3]))
@@ -198,15 +198,17 @@ func replyClient(conn net.Conn, sig, key []byte) (err error) {
 	readRand(&padding)
 	reply := make([]byte, nonceLen)
 	readRand(&reply)
-	pub := TokenPool.pickOrCreatePub()
-	encryptedPub, err := encrypte(pub, key)
-	if err != nil {
-		return
-	}
 	reply = append(reply, sig...)
 	reply = append(reply, byte(paddingLen))
 	reply = append(reply, padding...)
-	reply = append(reply, encryptedPub...)
+	if AuthInfo.FastHkEnable {
+		pub := TokenPool.pickOrCreatePub()
+		encryptedPub, err := encrypte(pub, key)
+		if err != nil {
+			return err
+		}
+		reply = append(reply, encryptedPub...)
+	}
 	_, err = conn.Write(reply)
 	if err != nil {
 		return

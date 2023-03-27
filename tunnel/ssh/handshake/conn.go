@@ -22,6 +22,7 @@ type Conn struct {
 	ephShareKey []byte
 	pubToSend   []byte
 	pubReceived []byte
+	hkData      []byte
 	// ephPri 客户端生成的私钥
 	ephPri     []byte
 	sendMutex  sync.Mutex // mutex used when write data to the connection
@@ -34,29 +35,29 @@ type Conn struct {
 
 var maxPaddingSize = 256 + fixedInt(256)
 
-func (s *Conn) LocalAddr() net.Addr {
-	return s.Conn.LocalAddr()
+func (c *Conn) LocalAddr() net.Addr {
+	return c.Conn.LocalAddr()
 }
 
-func (s *Conn) RemoteAddr() net.Addr {
-	return s.Conn.RemoteAddr()
+func (c *Conn) RemoteAddr() net.Addr {
+	return c.Conn.RemoteAddr()
 }
 
-func (s *Conn) SetDeadline(t time.Time) error {
-	return s.Conn.SetDeadline(t)
+func (c *Conn) SetDeadline(t time.Time) error {
+	return c.Conn.SetDeadline(t)
 }
 
-func (s *Conn) SetReadDeadline(t time.Time) error {
-	return s.Conn.SetReadDeadline(t)
+func (c *Conn) SetReadDeadline(t time.Time) error {
+	return c.Conn.SetReadDeadline(t)
 }
 
-func (s *Conn) SetWriteDeadline(t time.Time) error {
-	return s.Conn.SetWriteDeadline(t)
+func (c *Conn) SetWriteDeadline(t time.Time) error {
+	return c.Conn.SetWriteDeadline(t)
 }
-func (s *Conn) Read(b []byte) (n int, err error) {
-	s.recvMutex.Lock()
-	defer s.recvMutex.Unlock()
-	n, err = s.readInternal(b)
+func (c *Conn) Read(b []byte) (n int, err error) {
+	c.recvMutex.Lock()
+	defer c.recvMutex.Unlock()
+	n, err = c.readInternal(b)
 	if err != nil {
 		if errors.Is(err, io.EOF) {
 			// EOF must be reported back to caller as is.
@@ -66,37 +67,37 @@ func (s *Conn) Read(b []byte) (n int, err error) {
 	}
 	return n, nil
 }
-func (s *Conn) readInternal(b []byte) (n int, err error) {
-	if len(s.recvBufPtr) > 0 {
-		n = copy(b, s.recvBufPtr)
-		s.recvBufPtr = s.recvBufPtr[n:]
+func (c *Conn) readInternal(b []byte) (n int, err error) {
+	if len(c.recvBufPtr) > 0 {
+		n = copy(b, c.recvBufPtr)
+		c.recvBufPtr = c.recvBufPtr[n:]
 		return n, nil
 	}
 	//}
 	// Read encrypted payload length.
 	readLen := 2 + cipher.DefaultOverhead
-	if s.recv == nil || s.changeKey {
+	if c.recv == nil || c.changeKey {
 		// For the first Read, also include nonce.
 		readLen += cipher.DefaultNonceSize
 	}
 
-	if s.recv == nil {
-		if len(s.sharedKey) != 0 {
-			s.recv, err = cipher.NewAESGCMBlockCipher(s.sharedKey)
+	if c.recv == nil {
+		if len(c.sharedKey) != 0 {
+			c.recv, err = cipher.NewAESGCMBlockCipher(c.sharedKey)
 			if err != nil {
 				log.Fatalf("创建读加密块失败: %v", err)
 			}
 		} else {
-			if s.isClient {
+			if c.isClient {
 				// 客户端进行0rtt握手, 读取服务端临时公钥
 				pubData := make([]byte, sigLen+16)
-				n, err = io.ReadFull(s.Conn, pubData)
+				n, err = io.ReadFull(c.Conn, pubData)
 				if err != nil {
 					return 0, err
 				}
 				if pubData[15] == byte(255) {
 					TokenPool.clear()
-					if verifyServerMsg(s.pubToSend, pubData) {
+					if verifyServerMsg(c.pubToSend, pubData) {
 						return 0, fmt.Errorf("使用的服务端临时公钥已过期")
 					} else {
 						return 0, fmt.Errorf("无法认证服务端身份, 但什么也做不了")
@@ -104,36 +105,36 @@ func (s *Conn) readInternal(b []byte) (n int, err error) {
 				}
 				pubC := pubData[16 : 16+ephPubKeyLen]
 				// 这是最终的共享密钥
-				secret, err := generateSharedSecret(s.ephPri, pubC)
+				secret, err := generateSharedSecret(c.ephPri, pubC)
 				if err != nil {
 					return 0, err
 				}
-				s.sharedKey = secret
-				s.changeKey = true
+				c.sharedKey = secret
+				c.changeKey = true
 			} else {
 				//服务端处理0rtt握手, 读取客户端临时公钥
-				s.recv, err = cipher.NewAESGCMBlockCipher(s.ephShareKey)
+				c.recv, err = cipher.NewAESGCMBlockCipher(c.ephShareKey)
 				if err != nil {
 					log.Fatalf("创建读加密块失败: %v", err)
 				}
 			}
 		}
 	}
-	if s.changeKey {
-		s.recv, err = cipher.NewAESGCMBlockCipher(s.sharedKey)
+	if c.changeKey {
+		c.recv, err = cipher.NewAESGCMBlockCipher(c.sharedKey)
 		if err != nil {
 			log.Fatalf("创建读加密块失败: %v", err)
 		}
-		s.changeKey = false
+		c.changeKey = false
 	}
 
 	encryptedLen := make([]byte, readLen)
-	if _, err := io.ReadFull(s.Conn, encryptedLen); err != nil {
+	if _, err := io.ReadFull(c.Conn, encryptedLen); err != nil {
 		return 0, fmt.Errorf("read %d bytes failed when reading encryptedLen: %w", readLen, err)
 	}
 
 	var decryptedLen []byte
-	decryptedLen, err = s.recv.Decrypt(encryptedLen)
+	decryptedLen, err = c.recv.Decrypt(encryptedLen)
 	if err != nil {
 		return 0, fmt.Errorf("decrypted len failed: %w", err)
 	}
@@ -145,10 +146,10 @@ func (s *Conn) readInternal(b []byte) (n int, err error) {
 
 	// Read encrypted payload.
 	encryptedPayload := make([]byte, readLen)
-	if _, err := io.ReadFull(s.Conn, encryptedPayload); err != nil {
+	if _, err := io.ReadFull(c.Conn, encryptedPayload); err != nil {
 		return 0, fmt.Errorf("read %d bytes failed when reading encryptedPayload: %w", readLen, err)
 	}
-	decryptedPayload, err := s.recv.Decrypt(encryptedPayload)
+	decryptedPayload, err := c.recv.Decrypt(encryptedPayload)
 	if err != nil {
 		return 0, fmt.Errorf("decrypted payload failed: %w", err)
 	}
@@ -169,37 +170,37 @@ func (s *Conn) readInternal(b []byte) (n int, err error) {
 
 	// When b is not large enough, first copy to recvbuf then copy to b.
 	// If needed, resize recvBuf to guarantee a sufficient space.
-	if cap(s.recvBuf) < usefulSize {
-		s.recvBuf = make([]byte, usefulSize)
+	if cap(c.recvBuf) < usefulSize {
+		c.recvBuf = make([]byte, usefulSize)
 	}
-	s.recvBuf = s.recvBuf[:usefulSize]
-	copy(s.recvBuf, decryptedPayload[payloadOverhead:payloadOverhead+usefulSize])
-	n = copy(b, s.recvBuf)
-	s.recvBufPtr = s.recvBuf[n:]
+	c.recvBuf = c.recvBuf[:usefulSize]
+	copy(c.recvBuf, decryptedPayload[payloadOverhead:payloadOverhead+usefulSize])
+	n = copy(b, c.recvBuf)
+	c.recvBufPtr = c.recvBuf[n:]
 	log.Tracef("ssh conn read %d bytes from wire", n)
 	return n, nil
 }
 
-func (s *Conn) Write(b []byte) (n int, err error) {
-	s.sendMutex.Lock()
-	defer s.sendMutex.Unlock()
+func (c *Conn) Write(b []byte) (n int, err error) {
+	c.sendMutex.Lock()
+	defer c.sendMutex.Unlock()
 	n = len(b)
 	if len(b) <= maxWriteChunkSize {
-		return s.writeChunk(b)
+		return c.writeChunk(b)
 	}
 	for len(b) > 0 {
 		sizeToSend := intRange(baseWriteChunkSize, maxWriteChunkSize)
 		if sizeToSend > len(b) {
 			sizeToSend = len(b)
 		}
-		if _, err = s.writeChunk(b[:sizeToSend]); err != nil {
+		if _, err = c.writeChunk(b[:sizeToSend]); err != nil {
 			return 0, err
 		}
 		b = b[sizeToSend:]
 	}
 	return n, nil
 }
-func (s *Conn) writeChunk(b []byte) (n int, err error) {
+func (c *Conn) writeChunk(b []byte) (n int, err error) {
 	if len(b) > maxWriteChunkSize {
 		return 0, fmt.Errorf("要写入的包长度超过%v", maxWriteChunkSize)
 	}
@@ -219,20 +220,20 @@ func (s *Conn) writeChunk(b []byte) (n int, err error) {
 	}
 
 	// Create send block cipher if needed.
-	if s.send == nil {
-		if len(s.sharedKey) != 0 {
-			s.send, err = cipher.NewAESGCMBlockCipher(s.sharedKey)
+	if c.send == nil {
+		if len(c.sharedKey) != 0 {
+			c.send, err = cipher.NewAESGCMBlockCipher(c.sharedKey)
 			if err != nil {
 				log.Fatalf("创建写加密块失败: %v", err)
 			}
 		} else {
-			if s.isClient {
+			if c.isClient {
 				//客户端开始0rtt握手, 发送临时公钥
-				s.send, err = cipher.NewAESGCMBlockCipher(s.ephShareKey)
+				c.send, err = cipher.NewAESGCMBlockCipher(c.ephShareKey)
 				if err != nil {
 					log.Fatalf("创建写加密块失败: %v", err)
 				}
-				//n, err = s.Conn.Write(s.pubToSend)
+				//n, err = c.Conn.Write(c.pubToSend)
 				//if err != nil {
 				//	return 0, fmt.Errorf("client failed to send pub: %w", err)
 				//}
@@ -243,52 +244,57 @@ func (s *Conn) writeChunk(b []byte) (n int, err error) {
 					return 0, nil
 				}
 				// 这是最终的共享密钥
-				secret, err := generateSharedSecret(pri[:], s.pubReceived)
+				secret, err := generateSharedSecret(pri[:], c.pubReceived)
 				if err != nil {
 					return 0, nil
 				}
 				nonce := make([]byte, sigLen+16)
 				readRand(&nonce)
 				copy(nonce[16:16+ephPubKeyLen], pub[:])
-				n, err = s.Conn.Write(nonce)
-				if err != nil {
-					return 0, fmt.Errorf("server failed to send pub: %w", err)
-				}
+				//n, err = c.Conn.Write(nonce)
+				//if err != nil {
+				//	return 0, fmt.Errorf("server failed to send pub: %w", err)
+				//}
+				c.hkData = nonce
 
-				s.sharedKey = secret
-				s.changeKey = true
+				c.sharedKey = secret
+				c.changeKey = true
 			}
 		}
 	}
-	if s.changeKey {
-		s.send, err = cipher.NewAESGCMBlockCipher(s.sharedKey)
+	if c.changeKey {
+		c.send, err = cipher.NewAESGCMBlockCipher(c.sharedKey)
 		if err != nil {
 			log.Fatalf("创建写加密块失败: %v", err)
 		}
-		s.changeKey = false
+		c.changeKey = false
 	}
 	// Create encrypted payload length.
 	plaintextLen := make([]byte, 2)
 	binary.LittleEndian.PutUint16(plaintextLen, uint16(len(payload)))
-	encryptedLen, err := s.send.Encrypt(plaintextLen)
+	encryptedLen, err := c.send.Encrypt(plaintextLen)
 	if err != nil {
 		return 0, fmt.Errorf("encrypt() failed: %w", err)
 	}
-
+	if len(c.hkData) != 0 {
+		encryptedLen = append(c.hkData, encryptedLen...)
+		c.hkData = nil
+	}
 	// Create encrypted payload.
-	encryptedPayload, err := s.send.Encrypt(payload)
+	encryptedPayload, err := c.send.Encrypt(payload)
 	if err != nil {
 		return 0, fmt.Errorf("encrypted() failed: %w", err)
 	}
 
 	// Send encrypted payload length + encrypted payload.
 	dataToSend := append(encryptedLen, encryptedPayload...)
-	if _, err := io.WriteString(s.Conn, string(dataToSend)); err != nil {
+
+	if _, err := io.WriteString(c.Conn, string(dataToSend)); err != nil {
 		return 0, fmt.Errorf("io.WriteString() failed: %w", err)
 	}
 	log.Tracef("ssh conn wrote %d bytes to wire", len(b))
 	return len(b), nil
 }
-func (s *Conn) Close() error {
-	return s.Conn.Close()
+func (c *Conn) Close() error {
+	return c.Conn.Close()
 }

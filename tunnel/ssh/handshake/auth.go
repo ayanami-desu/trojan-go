@@ -25,9 +25,10 @@ type otherAuthInfo struct {
 }
 
 type authInfo struct {
-	PrivateKey []byte
-	PublicKey  []byte
-	SessionId  []byte
+	PrivateKey   []byte
+	PublicKey    []byte
+	SessionId    []byte
+	FastHkEnable bool
 }
 type tokenPool struct {
 	mu     sync.Mutex

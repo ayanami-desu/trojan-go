@@ -61,6 +61,7 @@ func (s *Server) AcceptPacket(tunnel.Tunnel) (tunnel.PacketConn, error) {
 func NewServer(ctx context.Context, underlay tunnel.Server) (*Server, error) {
 	cfg := config.FromContext(ctx, Name).(*Config)
 	handshake.Init(cfg.Ssh.Pri, cfg.Ssh.Pub)
+	handshake.AuthInfo.FastHkEnable = cfg.Ssh.FastHkEnable
 	ctx, cancel := context.WithCancel(ctx)
 	server := &Server{
 		underlay: underlay,

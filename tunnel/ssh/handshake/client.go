@@ -16,8 +16,10 @@ func Client(conn net.Conn) (*Conn, error) {
 	conn.SetReadDeadline(time.Now().Add(readTimeOut))
 	defer conn.SetReadDeadline(time.Time{})
 
-	if c, err := TokenPool.pickPub(); err == nil {
-		return fastlyHs(conn, c)
+	if AuthInfo.FastHkEnable {
+		if c, err := TokenPool.pickPub(); err == nil {
+			return fastlyHs(conn, c)
+		}
 	}
 	payload, cInfo := makeClientPacketOne()
 	_, err := conn.Write(payload)
@@ -41,10 +43,10 @@ func Client(conn net.Conn) (*Conn, error) {
 		err = fmt.Errorf("服务端签名验证未通过")
 		return nil, err
 	}
-	//清空之前储存的服务端公钥
-	//TokenPool.clear()
-	if err := TokenPool.add(decryptedPub); err != nil {
-		return nil, err
+	if AuthInfo.FastHkEnable {
+		if err := TokenPool.add(decryptedPub); err != nil {
+			return nil, err
+		}
 	}
 	return &Conn{
 		Conn:      conn,
@@ -67,10 +69,6 @@ func fastlyHs(conn net.Conn, pubS []byte) (*Conn, error) {
 		copy(nonce[16+ephPubKeyLen:16+ephPubKeyLen+sessionIdLen], AuthInfo.SessionId)
 	}
 	secret, err := generateSharedSecret(pri[:], pubS)
-	_, err = conn.Write(nonce)
-	if err != nil {
-		return nil, fmt.Errorf("client failed to send pub: %w", err)
-	}
 	return &Conn{
 		Conn:        conn,
 		SessionId:   AuthInfo.SessionId,
@@ -78,6 +76,7 @@ func fastlyHs(conn net.Conn, pubS []byte) (*Conn, error) {
 		ephPri:      pri[:],
 		pubToSend:   nonce[16:],
 		isClient:    true,
+		hkData:      nonce,
 		recvBuf:     make([]byte, maxPayloadSize),
 	}, nil
 }
@@ -195,14 +194,16 @@ func readServerReply(conn net.Conn, key []byte) (sig, pub []byte, err error) {
 	if err != nil {
 		return
 	}
-	encryptedPub := make([]byte, ephPubKeyLen+authTagSize)
-	_, err = io.ReadFull(conn, encryptedPub)
-	if err != nil {
-		return
-	}
-	pub, err = decrypt(encryptedPub, key)
-	if err != nil {
-		return
+	if AuthInfo.FastHkEnable {
+		encryptedPub := make([]byte, ephPubKeyLen+authTagSize)
+		_, err = io.ReadFull(conn, encryptedPub)
+		if err != nil {
+			return
+		}
+		pub, err = decrypt(encryptedPub, key)
+		if err != nil {
+			return
+		}
 	}
 	sig = sigAndPaddingLen[:sigLen]
 	return

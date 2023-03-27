@@ -49,6 +49,7 @@ func (c *Client) Close() error {
 func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
 	cfg := config.FromContext(ctx, Name).(*Config)
 	handshake.Init(cfg.Ssh.Pri, cfg.Ssh.Pub)
+	handshake.AuthInfo.FastHkEnable = cfg.Ssh.FastHkEnable
 	ctx, cancel := context.WithCancel(ctx)
 	client := &Client{
 		underlay: underlay,
