@@ -23,8 +23,6 @@ var errNoMultiplex = errors.New("a singleplexing session can have only one strea
 type SessionConfig struct {
 	MaxConnNum int
 
-	//Unordered bool
-
 	// A Singleplexing session always has just one stream
 	Singleplex bool
 
@@ -77,14 +75,13 @@ type Session struct {
 
 func MakeSession(id uint32, config SessionConfig) *Session {
 	sesh := &Session{
-		id:             id,
-		SessionConfig:  config,
-		createdTime:    time.Now(),
-		lastActiveTime: time.Now(),
-		nextStreamID:   1,
-		acceptCh:       make(chan *Stream, acceptBacklog),
-		recvFramePool:  sync.Pool{New: func() interface{} { return &Frame{} }},
-		streams:        map[uint32]*Stream{},
+		id:            id,
+		SessionConfig: config,
+		createdTime:   time.Now(),
+		nextStreamID:  1,
+		acceptCh:      make(chan *Stream, acceptBacklog),
+		recvFramePool: sync.Pool{New: func() interface{} { return &Frame{} }},
+		streams:       map[uint32]*Stream{},
 	}
 	if config.MsgOnWireSizeLimit <= 0 {
 		sesh.MsgOnWireSizeLimit = defaultMaxOnWireSize

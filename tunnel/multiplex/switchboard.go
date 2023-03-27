@@ -66,28 +66,23 @@ func (sb *switchboard) send(data []byte, assignedConn *net.Conn) (n int, err err
 	}
 
 	var conn net.Conn
-	switch sb.strategy {
-	case fixedConnMapping:
-		conn = *assignedConn
-		if conn == nil {
-			conn, err = sb.pickRandConn()
-			if err != nil {
-				log.Tracef("failed to pick a connection:%w", err)
-				sb.session.SetTerminalMsg("failed to pick a connection " + err.Error())
-				sb.session.passiveClose()
-				return 0, err
-			}
-			*assignedConn = conn
-		}
-		n, err = conn.Write(data)
+	conn = *assignedConn
+	if conn == nil {
+		conn, err = sb.pickRandConn()
 		if err != nil {
-			log.Tracef("failed to send to remote: %w", err)
-			sb.session.SetTerminalMsg("failed to send to remote " + err.Error())
+			log.Tracef("failed to pick a connection:%v", err)
+			sb.session.SetTerminalMsg("failed to pick a connection " + err.Error())
 			sb.session.passiveClose()
-			return n, err
+			return 0, err
 		}
-	default:
-		return 0, errors.New("unsupported traffic distribution strategy")
+		*assignedConn = conn
+	}
+	n, err = conn.Write(data)
+	if err != nil {
+		log.Tracef("failed to send to remote: %v", err)
+		sb.session.SetTerminalMsg("failed to send to remote " + err.Error())
+		sb.session.passiveClose()
+		return n, err
 	}
 
 	return n, nil

@@ -56,7 +56,7 @@ func makeStream(sesh *Session, id uint32) *Stream {
 		},
 	}
 
-	stream.recvBuf = NewStreamBuffer()
+	stream.recvBuf = newStreamBuffer()
 	return stream
 }
 
@@ -190,7 +190,7 @@ func (s *Stream) passiveClose() error {
 	return s.session.closeStream(s, false)
 }
 
-// active close. Close locally and tell the remote that this stream is being closed
+// Close active close. locally and tell the remote that this stream is being closed
 func (s *Stream) Close() error {
 	s.writingM.Lock()
 	defer s.writingM.Unlock()

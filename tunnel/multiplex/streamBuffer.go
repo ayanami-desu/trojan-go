@@ -20,14 +20,14 @@ import (
 
 type sorterHeap []*Frame
 
-func (sh sorterHeap) Less(i, j int) bool {
-	return sh[i].Seq < sh[j].Seq
+func (sh *sorterHeap) Less(i, j int) bool {
+	return (*sh)[i].Seq < (*sh)[j].Seq
 }
-func (sh sorterHeap) Len() int {
-	return len(sh)
+func (sh *sorterHeap) Len() int {
+	return len(*sh)
 }
-func (sh sorterHeap) Swap(i, j int) {
-	sh[i], sh[j] = sh[j], sh[i]
+func (sh *sorterHeap) Swap(i, j int) {
+	(*sh)[i], (*sh)[j] = (*sh)[j], (*sh)[i]
 }
 
 func (sh *sorterHeap) Push(x interface{}) {
@@ -55,10 +55,10 @@ type streamBuffer struct {
 // Its main function is to sort frames in order, and wait for frames to arrive
 // if they have arrived out-of-order. Then it writes the payload of frames into
 // a streamBufferedPipe.
-func NewStreamBuffer() *streamBuffer {
+func newStreamBuffer() *streamBuffer {
 	sb := &streamBuffer{
 		sh:  []*Frame{},
-		buf: NewStreamBufferedPipe(),
+		buf: newStreamBufferedPipe(),
 	}
 	return sb
 }

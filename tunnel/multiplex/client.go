@@ -19,7 +19,7 @@ type Client struct {
 	sessConfig     SessionConfig
 	maxSessionTime time.Duration
 	sessIdleTime   time.Duration
-	underlay       tunnel.Client
+	underlay       *ssh.Client
 	ctx            context.Context
 	cancel         context.CancelFunc
 }
@@ -28,43 +28,74 @@ func (c *Client) newSession() (*Session, error) {
 	log.Debugf("开始创建会话")
 	connCh := make(chan tunnel.Conn, c.sessConfig.MaxConnNum)
 	errCh := make(chan error)
-	if underlay, ok := c.underlay.(*ssh.Client); ok {
-		sessionId := make([]byte, 4)
-		io.ReadFull(rand.Reader, sessionId)
-		underlay.ReceiveSessionId(sessionId)
-		sess := MakeSession(transSessionId(sessionId), c.sessConfig)
-		for i := 0; i < c.sessConfig.MaxConnNum; i++ {
-			go func() {
-			makeconn:
-				conn, err := underlay.DialConn(nil, &Tunnel{})
-				if err != nil {
-					errCh <- err
-					log.Errorf("Failed to prepare connection to remote: %w", err)
-					time.Sleep(time.Second * 3)
-					goto makeconn
-				}
-				connCh <- conn
-			}()
-		}
-		errNum := 0
+	sessionId := make([]byte, 4)
+	io.ReadFull(rand.Reader, sessionId)
+	c.underlay.ReceiveSessionId(sessionId)
+	sess := MakeSession(transSessionId(sessionId), c.sessConfig)
+	for i := 0; i < c.sessConfig.MaxConnNum; i++ {
+		go func() {
+		makeconn:
+			conn, err := c.underlay.DialConn(nil, &Tunnel{})
+			if err != nil {
+				errCh <- err
+				log.Errorf("Failed to prepare connection to remote: %w", err)
+				time.Sleep(time.Second * 3)
+				goto makeconn
+			}
+			connCh <- conn
+		}()
+	}
+	errNum := 0
 
-		for i := 0; i < c.sessConfig.MaxConnNum; i++ {
-			select {
-			case conn := <-connCh:
-				sess.AddConnection(conn)
-			case <-errCh:
-				errNum += 1
-				if errNum == 12 {
-					return nil, common.NewError("创建底层连接失败次数过多")
-				}
+	for i := 0; i < c.sessConfig.MaxConnNum; i++ {
+		select {
+		case conn := <-connCh:
+			sess.AddConnection(conn)
+		case <-errCh:
+			errNum += 1
+			if errNum == 12 {
+				return nil, common.NewError("创建底层连接失败次数过多")
 			}
 		}
-		log.Debug("All underlying connections established")
-		return sess, nil
-	} else {
-		panic("暂不支持其他underlay")
 	}
+	log.Debug("All underlying connections established")
+	return sess, nil
 
+}
+
+func (c *Client) cleanLoop() {
+	var checkDuration time.Duration
+	if c.sessIdleTime <= 0 {
+		checkDuration = time.Second * 10
+		log.Warn("negative sessIdleTime")
+	} else {
+		checkDuration = c.sessIdleTime / 4
+	}
+	log.Debugf("check duration: %v s", checkDuration.Seconds())
+	for {
+		select {
+		case <-time.After(checkDuration):
+			c.sessionsM.Lock()
+			for id, info := range c.sessions {
+				if info.streamCount() == 0 && time.Since(info.lastActiveTime) > c.sessIdleTime {
+					info.Close()
+					delete(c.sessions, id)
+					log.Infof("session %d is closed due to inactivity", id)
+				}
+			}
+			c.sessionsM.Unlock()
+		case <-c.ctx.Done():
+			log.Debug("shutting down session cleaner..")
+			c.sessionsM.Lock()
+			for id, info := range c.sessions {
+				info.Close()
+				delete(c.sessions, id)
+				log.Debugf("session %d closed", id)
+			}
+			c.sessionsM.Unlock()
+			return
+		}
+	}
 }
 func (c *Client) DialConn(_ *tunnel.Address, _ tunnel.Tunnel) (tunnel.Conn, error) {
 	createStream := func(sess *Session) (tunnel.Conn, error) {
@@ -79,20 +110,20 @@ func (c *Client) DialConn(_ *tunnel.Address, _ tunnel.Tunnel) (tunnel.Conn, erro
 	}
 	c.sessionsM.Lock()
 	defer c.sessionsM.Unlock()
-	for _, sess := range c.sessions {
+	for id, sess := range c.sessions {
 		if sess.IsClosed() {
-			delete(c.sessions, sess.id)
+			delete(c.sessions, id)
 			continue
 		}
-		if !sess.IsClosed() && sess.streamCount() == 0 && time.Since(sess.lastActiveTime) > c.sessIdleTime {
+		if sess.streamCount() == 0 && time.Since(sess.lastActiveTime) > c.sessIdleTime {
 			sess.SetTerminalMsg("timeout")
 			sess.Close()
-			log.Debugf("因不活跃而关闭会话: %v", sess.id)
-			delete(c.sessions, sess.id)
+			log.Debugf("因不活跃而关闭会话: %v", id)
+			delete(c.sessions, id)
 			continue
 		}
 		if time.Since(sess.createdTime) > c.maxSessionTime {
-			log.Debugf("因超时而跳过会话: %v", sess.id)
+			log.Debugf("因超时而跳过会话: %v", id)
 			continue
 		}
 		return createStream(sess)
@@ -116,8 +147,12 @@ func (c *Client) Close() error {
 func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
 	cfg := config.FromContext(ctx, Name).(*Config)
 	ctx, cancel := context.WithCancel(ctx)
+	sshClient, ok := underlay.(*ssh.Client)
+	if !ok {
+		log.Fatal("multiplex's underlay must be ssh client")
+	}
 	client := &Client{
-		underlay: underlay,
+		underlay: sshClient,
 		ctx:      ctx,
 		cancel:   cancel,
 		sessions: make(map[uint32]*Session),
@@ -131,6 +166,7 @@ func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
 	}
 	client.maxSessionTime = time.Duration(cfg.Multi.MaxSessionTime) * time.Second
 	client.sessIdleTime = time.Duration(cfg.Multi.SessIdleTime) * time.Second
+	go client.cleanLoop()
 	log.Debugf("multiplex client created")
 	return client, nil
 }

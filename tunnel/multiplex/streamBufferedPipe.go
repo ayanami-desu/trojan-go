@@ -21,7 +21,7 @@ type streamBufferedPipe struct {
 	timeoutTimer *time.Timer
 }
 
-func NewStreamBufferedPipe() *streamBufferedPipe {
+func newStreamBufferedPipe() *streamBufferedPipe {
 	p := &streamBufferedPipe{
 		rwCond: sync.NewCond(&sync.Mutex{}),
 		buf:    new(bytes.Buffer),
