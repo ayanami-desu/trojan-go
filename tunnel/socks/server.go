@@ -30,6 +30,7 @@ type Server struct {
 	underlay         tunnel.Server
 	localHost        string
 	localPort        int
+	UDPEnable        bool
 	timeout          time.Duration
 	listenPacketConn tunnel.PacketConn
 	mapping          map[string]*PacketConn
@@ -219,6 +220,9 @@ func (s *Server) acceptLoop() {
 				return
 			case Associate:
 				defer newConn.Close()
+				if !s.UDPEnable {
+					return
+				}
 				associateAddr := tunnel.NewAddressFromHostPort("udp", s.localHost, s.localPort)
 				if err := s.associate(newConn, associateAddr); err != nil {
 					log.Errorf(common.NewError("socks failed to respond to associate request").Base(err).Error())
@@ -251,6 +255,7 @@ func NewServer(ctx context.Context, underlay tunnel.Server) (tunnel.Server, erro
 		packetChan:       make(chan tunnel.PacketConn, 32),
 		localHost:        cfg.LocalHost,
 		localPort:        cfg.LocalPort,
+		UDPEnable:        cfg.UDPEnable,
 		timeout:          time.Duration(cfg.UDPTimeout) * time.Second,
 		listenPacketConn: listenPacketConn,
 		mapping:          make(map[string]*PacketConn),
