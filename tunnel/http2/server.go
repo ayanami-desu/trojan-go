@@ -36,7 +36,8 @@ func (s *Server) serveHttp(writer nhttp.ResponseWriter, request *nhttp.Request) 
 		f.Flush()
 	}
 	doneD := done.New()
-	conn := newConnection(request.Body,
+	conn := newConnection(
+		request.Body,
 		flushWriter{w: writer, d: doneD},
 		icommon.ChainedClosable{doneD, request.Body},
 	)

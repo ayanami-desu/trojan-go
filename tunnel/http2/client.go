@@ -18,6 +18,7 @@ import (
 
 type Client struct {
 	http2Client *nhttp.Client
+	hostList    *host
 	bufferSize  int32
 	underlay    tunnel.Client
 	ctx         context.Context
@@ -34,9 +35,10 @@ func (c *Client) DialConn(addr *tunnel.Address, _ tunnel.Tunnel) (tunnel.Conn, e
 		Host:   host,
 		Body:   breader,
 		URL: &url.URL{
-			Scheme: "http",
-			Host:   "www.example.com",
-			Path:   "/",
+			Scheme: "https",
+			//Host:   "www.example.com",
+			Host: c.hostList.get(),
+			Path: "/",
 		},
 		Proto:      "HTTP/2",
 		ProtoMajor: 2,
@@ -79,7 +81,6 @@ func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
 	cfg := config.FromContext(ctx, Name).(*Config)
 	ctx, cancel := context.WithCancel(ctx)
 	t := &nhttp2.Transport{
-		AllowHTTP: true,
 		DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
 			return underlay.DialConn(nil, nil)
 		}}
@@ -88,10 +89,12 @@ func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
 		t.PingTimeout = time.Duration(cfg.Http2.HealthCheckTimeout) * time.Second
 	}
 	httpClient := &nhttp.Client{Transport: t}
+	hostList := generateHostList(cfg.Http2.MaxConnNum)
 	client := &Client{
 		http2Client: httpClient,
 		underlay:    underlay,
 		bufferSize:  1024 * cfg.Http2.BufferSize,
+		hostList:    hostList,
 		ctx:         ctx,
 		cancel:      cancel,
 	}
