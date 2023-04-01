@@ -60,7 +60,7 @@ func (c *Client) Close() error {
 }
 
 func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
-	log.Debugf("simplesocks client created")
+	log.Debug("simplesocks client created")
 	return &Client{
 		underlay: underlay,
 	}, nil

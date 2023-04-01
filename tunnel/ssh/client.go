@@ -56,6 +56,6 @@ func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
 		ctx:      ctx,
 		cancel:   cancel,
 	}
-	log.Debugf("ssh client created")
+	log.Debug("ssh client created")
 	return client, nil
 }

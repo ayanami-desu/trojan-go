@@ -123,7 +123,7 @@ func NewServer(ctx context.Context, _ tunnel.Server) (*Server, error) {
 		ctx:         ctx,
 		cancel:      cancel,
 	}
-	log.Info("adapter listening on tcp/udp:", addr)
+	log.Infof("adapter listening on tcp/udp: %v", addr)
 	go server.acceptConnLoop()
 	return server, nil
 }

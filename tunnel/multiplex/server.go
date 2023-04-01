@@ -109,6 +109,6 @@ func NewServer(ctx context.Context, underlay tunnel.Server) (*Server, error) {
 		server.sessConfig.Singleplex = false
 	}
 	go server.acceptConnWorker()
-	log.Debugf("multiplex server created")
+	log.Debug("multiplex server created")
 	return server, nil
 }

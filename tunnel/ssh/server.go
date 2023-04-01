@@ -70,6 +70,6 @@ func NewServer(ctx context.Context, underlay tunnel.Server) (*Server, error) {
 		cancel:   cancel,
 	}
 	go server.acceptLoop()
-	log.Debugf("ssh server created")
+	log.Debug("ssh server created")
 	return server, nil
 }

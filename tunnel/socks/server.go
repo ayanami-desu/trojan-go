@@ -262,6 +262,6 @@ func NewServer(ctx context.Context, underlay tunnel.Server) (tunnel.Server, erro
 	}
 	go server.acceptLoop()
 	go server.packetDispatchLoop()
-	log.Debugf("socks server created")
+	log.Debug("socks server created")
 	return server, nil
 }

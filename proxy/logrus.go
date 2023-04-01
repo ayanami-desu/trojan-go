@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"io"
-	"os"
-	"path"
+	"strings"
 )
 
 const (
-	red    = 31
-	yellow = 33
-	blue   = 36
-	gray   = 37
+	red           = 31
+	yellow        = 33
+	blue          = 36
+	gray          = 37
+	pathSplitFlag = "trojan-go/"
 )
 
 func SetLogLevel(level string) {
@@ -27,7 +27,7 @@ func SetLogLevel(level string) {
 }
 
 func SetOutput(w io.Writer) {
-	logrus.SetOutput(os.Stderr)
+	logrus.SetOutput(w)
 }
 
 type LogFormatter struct{}
@@ -39,12 +39,14 @@ func (t *LogFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	switch entry.Level {
 	case logrus.DebugLevel, logrus.TraceLevel:
 		levelColor = gray
+	case logrus.InfoLevel:
+		levelColor = blue
 	case logrus.WarnLevel:
 		levelColor = yellow
 	case logrus.ErrorLevel, logrus.FatalLevel, logrus.PanicLevel:
 		levelColor = red
 	default:
-		levelColor = blue
+		return nil, fmt.Errorf("unknown log level: %v", entry.Level)
 	}
 	var b *bytes.Buffer
 	if entry.Buffer != nil {
@@ -57,9 +59,13 @@ func (t *LogFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	if entry.HasCaller() {
 		//自定义文件路径
 		funcVal := entry.Caller.Function
-		fileVal := fmt.Sprintf("%s:%d", path.Base(entry.Caller.File), entry.Caller.Line)
+		_, path, found := strings.Cut(entry.Caller.File, pathSplitFlag)
+		if !found {
+			path = entry.Caller.File
+		}
+		fileVal := fmt.Sprintf("%s:%d", path, entry.Caller.Line)
 		//自定义输出格式
-		fmt.Fprintf(b, "[%s] \x1b[%dm[%s]\x1b[0m %s %s %s\n", timestamp, levelColor, entry.Level, fileVal, funcVal, entry.Message)
+		fmt.Fprintf(b, "[%s] \x1b[%dm[%s]\x1b[0m %s %s; %s\n", timestamp, levelColor, entry.Level, fileVal, funcVal, entry.Message)
 	} else {
 		fmt.Fprintf(b, "[%s] \x1b[%dm[%s]\x1b[0m  %s\n", timestamp, levelColor, entry.Level, entry.Message)
 	}

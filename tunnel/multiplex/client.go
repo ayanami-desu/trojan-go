@@ -167,6 +167,6 @@ func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
 	client.maxSessionTime = time.Duration(cfg.Multi.MaxSessionTime) * time.Second
 	client.sessIdleTime = time.Duration(cfg.Multi.SessIdleTime) * time.Second
 	go client.cleanLoop()
-	log.Debugf("multiplex client created")
+	log.Debug("multiplex client created")
 	return client, nil
 }
