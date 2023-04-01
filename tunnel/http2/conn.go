@@ -23,18 +23,17 @@ type Conn struct {
 func (c *Conn) Metadata() *tunnel.Metadata {
 	return c.metadata
 }
-func parseHost(s string) (*tunnel.Metadata, error) {
-	flag := s[0:1]
+func parseHost(h, p string) (*tunnel.Metadata, error) {
 	var c tunnel.Command
-	switch flag {
-	case "c":
+	switch p {
+	case "/c":
 		c = tunnel.Command(1)
-	case "a":
+	case "/a":
 		c = tunnel.Command(3)
 	default:
-		log.Errorf("http2 server unknown command %s", flag)
+		log.Errorf("http2 server unknown command %s", p)
 	}
-	addr, err := tunnel.NewAddressFromAddr("tcp", s[1:])
+	addr, err := tunnel.NewAddressFromAddr("tcp", h)
 	if err != nil {
 		return nil, err
 	}
@@ -110,8 +109,6 @@ type connection struct {
 	writer  buf.Writer
 	done    *done.Instance
 	onClose io.Closer
-	local   net.Addr
-	remote  net.Addr
 }
 
 func newConnection(r io.Reader, w io.Writer, c io.Closer) net.Conn {
@@ -126,7 +123,8 @@ func newConnection(r io.Reader, w io.Writer, c io.Closer) net.Conn {
 }
 
 func (c *connection) Read(b []byte) (int, error) {
-	return c.reader.Read(b)
+	n, err := c.reader.Read(b)
+	return n, icommon.WrapH2(err)
 }
 
 // ReadMultiBuffer implements buf.Reader.
@@ -143,7 +141,8 @@ func (c *connection) Write(b []byte) (int, error) {
 	l := len(b)
 	mb := make(buf.MultiBuffer, 0, l/buf.Size+1)
 	mb = buf.MergeBytes(mb, b)
-	return l, c.writer.WriteMultiBuffer(mb)
+	err := c.writer.WriteMultiBuffer(mb)
+	return l, icommon.WrapH2(err)
 }
 
 func (c *connection) WriteMultiBuffer(mb buf.MultiBuffer) error {
@@ -168,12 +167,12 @@ func (c *connection) Close() error {
 
 // LocalAddr implements net.Conn.LocalAddr().
 func (c *connection) LocalAddr() net.Addr {
-	return c.local
+	return nil
 }
 
 // RemoteAddr implements net.Conn.RemoteAddr().
 func (c *connection) RemoteAddr() net.Addr {
-	return c.remote
+	return nil
 }
 
 // SetDeadline implements net.Conn.SetDeadline().

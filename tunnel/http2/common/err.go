@@ -1,26 +1,23 @@
 package common
 
-import "strings"
+import (
+	"io"
+	"strings"
+)
 
 // Closable is the interface for objects that can release its resources.
-//
-// xray:api:beta
 type Closable interface {
 	// Close release all resources used by this object, including goroutines.
 	Close() error
 }
 
 // Interruptible is an interface for objects that can be stopped before its completion.
-//
-// xray:api:beta
 type Interruptible interface {
 	Interrupt()
 }
 
 // Close closes the obj if it is a Closable.
-//
-// xray:api:beta
-func Close(obj interface{}) error {
+func Close(obj any) error {
 	if c, ok := obj.(Closable); ok {
 		return c.Close()
 	}
@@ -28,29 +25,12 @@ func Close(obj interface{}) error {
 }
 
 // Interrupt calls Interrupt() if object implements Interruptible interface, or Close() if the object implements Closable interface.
-//
-// xray:api:beta
-func Interrupt(obj interface{}) error {
+func Interrupt(obj any) error {
 	if c, ok := obj.(Interruptible); ok {
 		c.Interrupt()
 		return nil
 	}
 	return Close(obj)
-}
-
-// Runnable is the interface for objects that can start to work and stop on demand.
-type Runnable interface {
-	// Start starts the runnable object. Upon the method returning nil, the object begins to function properly.
-	Start() error
-
-	Closable
-}
-
-// HasType is the interface for objects that knows its type.
-type HasType interface {
-	// Type returns the type of the object.
-	// Usually it returns (*Type)(nil) of the object.
-	Type() interface{}
 }
 
 // ChainedClosable is a Closable that consists of multiple Closable objects.
@@ -97,4 +77,46 @@ func Must(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+func contains(err error, msgList ...string) bool {
+	for _, msg := range msgList {
+		if strings.Contains(err.Error(), msg) {
+			return true
+		}
+	}
+	return false
+}
+
+func WrapH2(err error) error {
+	if err == nil {
+		return nil
+	}
+	err = unwrap(err)
+	if err == io.ErrUnexpectedEOF {
+		return io.EOF
+	}
+	if contains(err, "client disconnected", "body closed by handler", "response body closed", "; CANCEL") {
+		//return net.ErrClosed
+		return io.EOF
+	}
+	return err
+}
+
+type hasInnerError interface {
+	unwrap() error
+}
+
+func unwrap(err error) error {
+	for {
+		inner, ok := err.(hasInnerError)
+		if !ok {
+			break
+		}
+		innerErr := inner.unwrap()
+		if innerErr == nil {
+			break
+		}
+		err = innerErr
+	}
+	return err
 }

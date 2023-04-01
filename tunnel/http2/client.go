@@ -26,23 +26,19 @@ type Client struct {
 }
 
 func (c *Client) DialConn(addr *tunnel.Address, _ tunnel.Tunnel) (tunnel.Conn, error) {
-	host := "c" + addr.String()
 	preader, pwriter := pipe.New(pipe.WithSizeLimit(c.bufferSize))
 	breader := &buf.BufferedReader{Reader: preader}
-	httpMethod := "PUT"
 	request := &nhttp.Request{
-		Method: httpMethod,
-		Host:   host,
+		Method: "PUT",
+		Host:   addr.String(),
 		Body:   breader,
 		URL: &url.URL{
 			Scheme: "https",
-			//Host:   "www.example.com",
-			Host: c.hostList.get(),
-			Path: "/",
+			Host:   c.hostList.get(),
+			Path:   "/c",
 		},
 		Proto:      "HTTP/2",
 		ProtoMajor: 2,
-		ProtoMinor: 0,
 		Header:     make(nhttp.Header),
 	}
 	// Disable any compression method from server.

@@ -25,7 +25,7 @@ type Server struct {
 }
 
 func (s *Server) serveHttp(writer nhttp.ResponseWriter, request *nhttp.Request) {
-	metadata, err := parseHost(request.Host)
+	metadata, err := parseHost(request.Host, request.URL.Path)
 	if err != nil {
 		log.Errorf("parse host to metadata failed %v", err)
 		return
@@ -48,27 +48,7 @@ func (s *Server) serveHttp(writer nhttp.ResponseWriter, request *nhttp.Request) 
 	<-doneD.Wait()
 }
 
-//func (s *Server) acceptConnWorker() {
-//	for {
-//		conn, err := s.underlay.AcceptConn(&Tunnel{})
-//		if err != nil {
-//			log.Debug(err)
-//			select {
-//			case <-s.ctx.Done():
-//				return
-//			default:
-//			}
-//			continue
-//		}
-//		go func(conn tunnel.Conn) {
-//			s.http2Server.ServeConn(conn, &nhttp2.ServeConnOpts{
-//				Handler: nhttp.HandlerFunc(s.serveHttp),
-//			})
-//		}(conn)
-//	}
-//}
-
-func (s *Server) acceptConnWorkerOne() {
+func (s *Server) acceptConnWorker() {
 	h2s := &nhttp2.Server{}
 
 	handler := nhttp.HandlerFunc(s.serveHttp)
@@ -107,15 +87,14 @@ func NewServer(ctx context.Context, underlay tunnel.Server) (*Server, error) {
 		cancel: cancel,
 	}
 	server := &Server{
-		underlay: underlay,
-		listener: l,
-		//http2Server:       &nhttp2.Server{},
+		underlay:          underlay,
+		listener:          l,
 		ReadHeaderTimeout: time.Duration(cfg.Http2.TimeOut) * time.Second,
 		connChan:          make(chan tunnel.Conn, 32),
 		ctx:               ctx,
 		cancel:            cancel,
 	}
-	go server.acceptConnWorkerOne()
+	go server.acceptConnWorker()
 	log.Debug("http2 server created")
 	return server, nil
 }
