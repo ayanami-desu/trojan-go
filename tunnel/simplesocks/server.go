@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/tunnel"
-	"github.com/p4gefau1t/trojan-go/tunnel/trojan"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -49,9 +48,7 @@ func (s *Server) acceptLoop() {
 			}
 		case Associate:
 			s.packetChan <- &PacketConn{
-				PacketConn: trojan.PacketConn{
-					Conn: conn,
-				},
+				Conn: conn,
 			}
 		default:
 			log.Errorf("simplesocks unknown command %d", metadata.Command)

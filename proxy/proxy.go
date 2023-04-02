@@ -15,10 +15,6 @@ import (
 
 const Name = "PROXY"
 
-//const (
-//	MaxPacketSize = 1024 * 8
-//)
-
 // Proxy relay connections and packets
 type Proxy struct {
 	sources         []tunnel.Server
