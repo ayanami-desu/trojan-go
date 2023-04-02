@@ -8,8 +8,7 @@ import (
 func makePubInvalidMsg(clientMsg []byte) []byte {
 	h := crypto.SHA256.New()
 	writeString(h, clientMsg)
-	serverMsg := make([]byte, 16)
-	readRand(&serverMsg)
+	serverMsg := newRandomData(16)
 	serverMsg[15] = byte(255)
 	writeString(h, serverMsg)
 	H := h.Sum(nil)

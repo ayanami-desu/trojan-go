@@ -19,28 +19,32 @@ func Server(conn net.Conn) (*Conn, error) {
 	nonce := make([]byte, nonceLen)
 	_, err := io.ReadFull(conn, nonce)
 	if err != nil {
+		err = fmt.Errorf("failed to read nonce: %w", err)
 		return nil, err
 	}
 
 	buf := make([]byte, 1024)
 	_, err = io.ReadFull(conn, buf[:4])
 	if err != nil {
-		err = fmt.Errorf("read length from connection fail: %v", err)
+		err = fmt.Errorf("failed to read dataLength: %w", err)
 		return nil, err
 	}
+	//还原数据段长度
+	copy(buf[:4], xorBytes(buf[:4], nonce[1]))
 	// 偶数则标志0rtt握手
 	if int(buf[3])%2 == 0 && AuthInfo.FastHkEnable {
 		return handleFastlyHs(conn)
 	}
 	randomLen := int(binary.LittleEndian.Uint16(buf[1:3]))
 	if randomLen > maxRandomDataSize {
-		err = fmt.Errorf("收到的服务端握手包长度(%v)超过限制", randomLen)
+		err = fmt.Errorf("收到的服务端握手包长度(%d)超过限制", randomLen)
+		readAfterError(conn)
 		return nil, err
 	}
 	dataLength := clientPacketHeadSize + randomLen + ephPubKeyLen + sessionIdLen
 	_, err = io.ReadFull(conn, buf[4:dataLength])
 	if err != nil {
-		err = fmt.Errorf("read left content from connection fail: %v", err)
+		err = fmt.Errorf("failed to read left content: %w", err)
 		return nil, err
 	}
 	entropyLen := int(buf[0])
@@ -54,12 +58,14 @@ func Server(conn net.Conn) (*Conn, error) {
 	ephPriS, ephPubS, err := generateKey()
 	if err != nil {
 		err = common.NewError("failed to generate ephemeral key pair").Base(err)
+		readAfterError(conn)
 		return nil, err
 	}
 	var secret []byte
 	secret, err = generateSharedSecret(ephPriS[:], ephPubC[:])
 	if err != nil {
 		err = common.NewError("error in generating shared secret").Base(err)
+		readAfterError(conn)
 		return nil, err
 	}
 	sInfo := &selfAuthInfo{
@@ -86,6 +92,7 @@ func Server(conn net.Conn) (*Conn, error) {
 	}
 	H := generateHash(sInfo, cInfo)
 	if !ed25519.Verify(AuthInfo.PublicKey, H, clientSig) {
+		readAfterError(conn)
 		return nil, fmt.Errorf("客户端签名验证未通过")
 	}
 	sig := ed25519.Sign(AuthInfo.PrivateKey, H)
@@ -134,16 +141,11 @@ func handleFastlyHs(conn net.Conn) (*Conn, error) {
 func makeServerPacketOne(sInfo *selfAuthInfo) (totalData []byte) {
 	paddingLen := intRange(minPaddingLen, maxPaddingLen)
 	entropyLen := intRange(minPaddingLen, maxPaddingLen)
-	padding1 := make([]byte, paddingLen)
-	sessionId := make([]byte, sessionIdLen)
-	entropy := make([]byte, entropyLen)
-	padding2 := make([]byte, paddingLen)
-	totalData = make([]byte, nonceLen)
-	readRand(&totalData)
-	readRand(&padding1)
-	readRand(&sessionId)
-	readRand(&entropy)
-	readRand(&padding2)
+	padding1 := newRandomData(paddingLen)
+	sessionId := newRandomData(sessionIdLen)
+	entropy := newRandomData(entropyLen)
+	padding2 := newRandomData(paddingLen)
+	totalData = newRandomData(nonceLen)
 	//补全serverInfo
 	sInfo.Entropy = entropy
 	sInfo.SessionId = sessionId
@@ -194,10 +196,8 @@ func readClientReply(conn net.Conn) (sig []byte, err error) {
 }
 func replyClient(conn net.Conn, sig, key []byte) (err error) {
 	paddingLen := intRange(128, 256)
-	padding := make([]byte, paddingLen)
-	readRand(&padding)
-	reply := make([]byte, nonceLen)
-	readRand(&reply)
+	padding := newRandomData(paddingLen)
+	reply := newRandomData(nonceLen)
 	reply = append(reply, sig...)
 	reply = append(reply, byte(paddingLen))
 	reply = append(reply, padding...)

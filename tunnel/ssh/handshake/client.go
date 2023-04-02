@@ -57,8 +57,7 @@ func Client(conn net.Conn) (*Conn, error) {
 	}, nil
 }
 func fastlyHs(conn net.Conn, pubS []byte) (*Conn, error) {
-	nonce := make([]byte, sigLen+16)
-	readRand(&nonce)
+	nonce := newRandomData(sigLen + 16)
 	nonce[15] = byte(2 * intn(128)) //偶数
 	pri, pub, err := generateKey()
 	if err != nil {
@@ -85,20 +84,16 @@ func makeClientPacketOne() (totalData []byte, info *selfAuthInfo) {
 	id := AuthInfo.SessionId
 	entropyLen := intRange(minPaddingLen, maxPaddingLen)
 	paddingLen := intRange(minPaddingLen, maxPaddingLen)
-	padding1 := make([]byte, paddingLen)
-	entropy := make([]byte, entropyLen)
+	padding1 := newRandomData(paddingLen)
+	entropy := newRandomData(entropyLen)
 	sessionId := make([]byte, 4)
 	if len(id) == 0 {
 		readRand(&sessionId)
 	} else {
 		copy(sessionId, id)
 	}
-	padding2 := make([]byte, paddingLen)
-	totalData = make([]byte, nonceLen)
-	readRand(&totalData)
-	readRand(&padding1)
-	readRand(&entropy)
-	readRand(&padding2)
+	padding2 := newRandomData(paddingLen)
+	totalData = newRandomData(nonceLen)
 	ephPri, ephPub, err := generateKey()
 	if err != nil {
 		log.Fatalf("failed to generate ephemeral key pair: %v", err)
@@ -113,6 +108,7 @@ func makeClientPacketOne() (totalData []byte, info *selfAuthInfo) {
 	dataLen[0] = byte(entropyLen)
 	binary.LittleEndian.PutUint16(dataLen[1:3], uint16(2*paddingLen+entropyLen))
 	dataLen[3] = byte(2*intn(128) - 1) //奇数
+	xorBytes(dataLen, totalData[1])
 	totalData = append(totalData, dataLen...)
 	totalData = append(totalData, padding1...)
 	totalData = append(totalData, sessionId...)
@@ -210,10 +206,8 @@ func readServerReply(conn net.Conn, key []byte) (sig, pub []byte, err error) {
 }
 func replyServer(conn net.Conn, sig []byte) (err error) {
 	paddingLen := intRange(128, 256)
-	padding := make([]byte, paddingLen)
-	readRand(&padding)
-	reply := make([]byte, nonceLen)
-	readRand(&reply)
+	padding := newRandomData(paddingLen)
+	reply := newRandomData(nonceLen)
 	reply = append(reply, sig...)
 	reply = append(reply, byte(paddingLen))
 	reply = append(reply, padding...)

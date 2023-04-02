@@ -233,10 +233,6 @@ func (c *Conn) writeChunk(b []byte) (n int, err error) {
 				if err != nil {
 					log.Fatalf("创建写加密块失败: %v", err)
 				}
-				//n, err = c.Conn.Write(c.pubToSend)
-				//if err != nil {
-				//	return 0, fmt.Errorf("client failed to send pub: %w", err)
-				//}
 			} else {
 				//服务端处理0rtt握手, 发送临时公钥
 				pri, pub, err := generateKey()
@@ -248,13 +244,8 @@ func (c *Conn) writeChunk(b []byte) (n int, err error) {
 				if err != nil {
 					return 0, nil
 				}
-				nonce := make([]byte, sigLen+16)
-				readRand(&nonce)
+				nonce := newRandomData(sigLen + 16)
 				copy(nonce[16:16+ephPubKeyLen], pub[:])
-				//n, err = c.Conn.Write(nonce)
-				//if err != nil {
-				//	return 0, fmt.Errorf("server failed to send pub: %w", err)
-				//}
 				c.hkData = nonce
 
 				c.sharedKey = secret
