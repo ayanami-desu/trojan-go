@@ -1,5 +1,5 @@
-//go:build server || full || mini
-// +build server full mini
+//go:build server || full
+// +build server full
 
 package build
 

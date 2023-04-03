@@ -1,5 +1,5 @@
-//go:build forward || full || mini
-// +build forward full mini
+//go:build forward || full
+// +build forward full
 
 package build
 

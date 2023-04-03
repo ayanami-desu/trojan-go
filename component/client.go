@@ -1,5 +1,5 @@
-//go:build client || full || mini
-// +build client full mini
+//go:build client || full
+// +build client full
 
 package build
 

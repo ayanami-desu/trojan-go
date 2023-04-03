@@ -2,6 +2,9 @@ package proxy
 
 import (
 	"bufio"
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"io"
@@ -99,6 +102,9 @@ func init() {
 		format:       flag.String("stdin-format", "disabled", "Read from standard input (yaml/json)"),
 		suppressHint: flag.Bool("stdin-suppress-hint", false, "Suppress hint text"),
 	})
+	option.RegisterHandler(&keyOption{
+		key: flag.Bool("key", false, "generate key pairs for server and client"),
+	})
 }
 
 type StdinOption struct {
@@ -153,4 +159,38 @@ func (o *StdinOption) isFormatJson() (isJson bool, e error) {
 		return false, common.NewError("reading from stdin is disabled")
 	}
 	return strings.ToLower(*o.format) == "json", nil
+}
+
+type keyOption struct {
+	key *bool
+}
+
+func (k *keyOption) Name() string {
+	return "KEY"
+}
+
+func (k *keyOption) Handle() error {
+	if !*k.key {
+		return nil
+	}
+	pri, pub, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return err
+	}
+	pri1, pub1, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return err
+	}
+	priS := base64.StdEncoding.EncodeToString(pri)
+	pubS := base64.StdEncoding.EncodeToString(pub1)
+	priC := base64.StdEncoding.EncodeToString(pri1)
+	pubC := base64.StdEncoding.EncodeToString(pub)
+	fmt.Printf("private key for server: %s\n", priS)
+	fmt.Printf("public key for server: %s\n", pubS)
+	fmt.Printf("private key for client: %s\n", priC)
+	fmt.Printf("public key for client: %s", pubC)
+	return nil
+}
+func (k *keyOption) Priority() int {
+	return -10
 }

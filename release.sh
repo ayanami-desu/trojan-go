@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
 
-mkdir -p release
+mkdir -p build
 
-rm -f ./release/*
-v=$1
-if [ -z "$v" ]; then
-  echo "Version number cannot be null. Run with v=[version] release.sh"
-  exit 1
-fi
+rm -f ./build/*
 
-output="{{.Dir}}-{{.OS}}-{{.Arch}}-v$v"
+output="{{.Dir}}-{{.OS}}-{{.Arch}}"
 
 echo "Compiling:"
+export GOFLAGS="-trimpath"
+
+os="linux"
+arch="amd64 arm64"
+CGO_ENABLED=0 gox -tags "server" -ldflags="-s -w -buildid=" -os="$os" -arch="$arch" -output="$output-server"
 
 os="windows linux"
 arch="amd64 arm64"
+CGO_ENABLED=0 gox -tags "client" -ldflags="-s -w -buildid=" -os="$os" -arch="$arch" -output="$output-client"
 
-CGO_ENABLED=0 gox -tags "custom" -ldflags="-s -w -buildid=" -os="$os" -arch="$arch" -output="$output"
-mv trojan-go-* ./release
-cd ./release
+mv trojan-go-* ./build
+cd ./build
 FILES=$(find . -type f)
 for file in $FILES; do
   filename=$(basename "$file")
