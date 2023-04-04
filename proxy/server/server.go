@@ -2,8 +2,13 @@ package server
 
 import (
 	"context"
+	"github.com/p4gefau1t/trojan-go/config"
+	"github.com/p4gefau1t/trojan-go/proxy/client"
 	"github.com/p4gefau1t/trojan-go/tunnel/http2"
+	"github.com/p4gefau1t/trojan-go/tunnel/multiplex"
+	"github.com/p4gefau1t/trojan-go/tunnel/mux"
 	"github.com/p4gefau1t/trojan-go/tunnel/ssh"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/p4gefau1t/trojan-go/proxy"
 	"github.com/p4gefau1t/trojan-go/tunnel/freedom"
@@ -15,7 +20,7 @@ const Name = "SERVER"
 
 func init() {
 	proxy.RegisterProxyCreator(Name, func(ctx context.Context) (*proxy.Proxy, error) {
-		//cfg := config.FromContext(ctx, Name).(*client.Config)
+		cfg := config.FromContext(ctx, Name).(*client.Config)
 		ctx, cancel := context.WithCancel(ctx)
 		transportServer, err := transport.NewServer(ctx, nil)
 		if err != nil {
@@ -32,8 +37,18 @@ func init() {
 			Server:     transportServer,
 		}
 
-		root.BuildNext(ssh.Name).BuildNext(http2.Name).BuildNext(simplesocks.Name).IsEndpoint = true
-
+		var s string
+		switch cfg.MuxType {
+		case "http2":
+			s = http2.Name
+		case "mux":
+			s = mux.Name
+		case "multiplex":
+			s = multiplex.Name
+		default:
+			log.Fatalf("unknown mux type: %s", cfg.MuxType)
+		}
+		root.BuildNext(ssh.Name).BuildNext(s).BuildNext(simplesocks.Name).IsEndpoint = true
 		serverList := proxy.FindAllEndpoints(root)
 		clientList, err := proxy.CreateClientStack(ctx, clientStack)
 		if err != nil {

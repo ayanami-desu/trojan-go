@@ -20,26 +20,29 @@ type Conn struct {
 	metadata      *tunnel.Metadata
 	isOutbound    bool
 	headerWritten bool
+	writeMetadata bool
 }
 
 func (c *Conn) Metadata() *tunnel.Metadata {
 	return c.metadata
 }
 
-//func (c *Conn) Write(payload []byte) (int, error) {
-//	if c.isOutbound && !c.headerWritten {
-//		buf := bytes.NewBuffer(make([]byte, 0, 4096))
-//		c.metadata.WriteTo(buf)
-//		buf.Write(payload)
-//		_, err := c.Conn.Write(buf.Bytes())
-//		if err != nil {
-//			return 0, common.NewError("failed to write simplesocks header").Base(err)
-//		}
-//		c.headerWritten = true
-//		return len(payload), nil
-//	}
-//	return c.Conn.Write(payload)
-//}
+func (c *Conn) Write(payload []byte) (int, error) {
+	if c.isOutbound && !c.headerWritten && c.writeMetadata {
+		buf := bytes.NewBuffer(make([]byte, 0, 4096))
+		if err := c.metadata.WriteTo(buf); err != nil {
+			return 0, common.NewError("failed to write metadata into buf").Base(err)
+		}
+		buf.Write(payload)
+		_, err := c.Conn.Write(buf.Bytes())
+		if err != nil {
+			return 0, common.NewError("failed to write simplesocks header").Base(err)
+		}
+		c.headerWritten = true
+		return len(payload), nil
+	}
+	return c.Conn.Write(payload)
+}
 
 type PacketConn struct {
 	tunnel.Conn

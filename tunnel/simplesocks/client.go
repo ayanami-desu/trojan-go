@@ -2,6 +2,7 @@ package simplesocks
 
 import (
 	"context"
+	"github.com/p4gefau1t/trojan-go/tunnel/http2"
 
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/tunnel"
@@ -14,7 +15,8 @@ const (
 )
 
 type Client struct {
-	underlay tunnel.Client
+	writeMetadata bool
+	underlay      tunnel.Client
 }
 
 func (c *Client) DialConn(addr *tunnel.Address, t tunnel.Tunnel) (tunnel.Conn, error) {
@@ -23,8 +25,9 @@ func (c *Client) DialConn(addr *tunnel.Address, t tunnel.Tunnel) (tunnel.Conn, e
 		return nil, common.NewError("simplesocks failed to dial using underlying tunnel").Base(err)
 	}
 	return &Conn{
-		Conn:       conn,
-		isOutbound: true,
+		Conn:          conn,
+		isOutbound:    true,
+		writeMetadata: c.writeMetadata,
 		metadata: &tunnel.Metadata{
 			Command: Connect,
 			Address: addr,
@@ -57,8 +60,10 @@ func (c *Client) Close() error {
 }
 
 func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
+	_, ok := underlay.(*http2.Client)
 	log.Debug("simplesocks client created")
 	return &Client{
-		underlay: underlay,
+		writeMetadata: !ok,
+		underlay:      underlay,
 	}, nil
 }

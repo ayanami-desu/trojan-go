@@ -2,8 +2,12 @@ package client
 
 import (
 	"context"
+	"github.com/p4gefau1t/trojan-go/config"
 	"github.com/p4gefau1t/trojan-go/tunnel/http2"
+	"github.com/p4gefau1t/trojan-go/tunnel/multiplex"
+	"github.com/p4gefau1t/trojan-go/tunnel/mux"
 	"github.com/p4gefau1t/trojan-go/tunnel/ssh"
+	"log"
 
 	"github.com/p4gefau1t/trojan-go/proxy"
 	"github.com/p4gefau1t/trojan-go/tunnel/adapter"
@@ -16,18 +20,28 @@ import (
 const Name = "CLIENT"
 
 // GenerateClientTree generate general outbound protocol stack
-func GenerateClientTree() []string {
+func GenerateClientTree(ctx context.Context) []string {
+	cfg := config.FromContext(ctx, Name).(*Config)
 	clientStack := []string{transport.Name}
-
+	var s string
+	switch cfg.MuxType {
+	case "http2":
+		s = http2.Name
+	case "mux":
+		s = mux.Name
+	case "multiplex":
+		s = multiplex.Name
+	default:
+		log.Fatalf("unknown mux type: %s", cfg.MuxType)
+	}
 	clientStack = append(clientStack, ssh.Name)
-	clientStack = append(clientStack, http2.Name)
+	clientStack = append(clientStack, s)
 	clientStack = append(clientStack, simplesocks.Name)
 	return clientStack
 }
 
 func init() {
 	proxy.RegisterProxyCreator(Name, func(ctx context.Context) (*proxy.Proxy, error) {
-		//cfg := config.FromContext(ctx, Name).(*Config)
 		adapterServer, err := adapter.NewServer(ctx, nil)
 		if err != nil {
 			return nil, err
@@ -45,7 +59,7 @@ func init() {
 		root.BuildNext(http.Name).IsEndpoint = true
 		root.BuildNext(socks.Name).IsEndpoint = true
 
-		clientStack := GenerateClientTree()
+		clientStack := GenerateClientTree(ctx)
 		c, err := proxy.CreateClientStack(ctx, clientStack)
 		if err != nil {
 			cancel()

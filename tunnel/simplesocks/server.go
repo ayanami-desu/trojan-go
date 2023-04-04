@@ -4,16 +4,18 @@ import (
 	"context"
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/tunnel"
+	"github.com/p4gefau1t/trojan-go/tunnel/http2"
 	log "github.com/sirupsen/logrus"
 )
 
 // Server is a simplesocks server
 type Server struct {
-	underlay   tunnel.Server
-	connChan   chan tunnel.Conn
-	packetChan chan tunnel.PacketConn
-	ctx        context.Context
-	cancel     context.CancelFunc
+	underlay     tunnel.Server
+	readMetadata bool
+	connChan     chan tunnel.Conn
+	packetChan   chan tunnel.PacketConn
+	ctx          context.Context
+	cancel       context.CancelFunc
 }
 
 func (s *Server) Close() error {
@@ -33,13 +35,16 @@ func (s *Server) acceptLoop() {
 			}
 			continue
 		}
-		//metadata := new(tunnel.Metadata)
-		metadata := conn.Metadata()
-		//if err := metadata.ReadFrom(conn); err != nil {
-		//	log.Errorf(common.NewError("simplesocks server faield to read header").Base(err).Error())
-		//	conn.Close()
-		//	continue
-		//}
+		metadata := new(tunnel.Metadata)
+		if s.readMetadata {
+			if err := metadata.ReadFrom(conn); err != nil {
+				log.Errorf(common.NewError("simplesocks server faield to read header").Base(err).Error())
+				conn.Close()
+				continue
+			}
+		} else {
+			metadata = conn.Metadata()
+		}
 		switch metadata.Command {
 		case Connect:
 			s.connChan <- &Conn{
@@ -77,12 +82,14 @@ func (s *Server) AcceptPacket(tunnel.Tunnel) (tunnel.PacketConn, error) {
 
 func NewServer(ctx context.Context, underlay tunnel.Server) (*Server, error) {
 	ctx, cancel := context.WithCancel(ctx)
+	_, ok := underlay.(*http2.Server)
 	server := &Server{
-		underlay:   underlay,
-		ctx:        ctx,
-		connChan:   make(chan tunnel.Conn, 32),
-		packetChan: make(chan tunnel.PacketConn, 32),
-		cancel:     cancel,
+		underlay:     underlay,
+		readMetadata: !ok,
+		ctx:          ctx,
+		connChan:     make(chan tunnel.Conn, 32),
+		packetChan:   make(chan tunnel.PacketConn, 32),
+		cancel:       cancel,
 	}
 	go server.acceptLoop()
 	log.Debug("simplesocks server created")
