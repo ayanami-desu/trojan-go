@@ -37,7 +37,7 @@ func (s *Server) acceptLoop() {
 			select {
 			case <-s.ctx.Done():
 			default:
-				log.Fatal(common.NewError("ssh accept error" + err.Error()))
+				log.Fatalf("ssh accept error, %v", err)
 			}
 			return
 		}

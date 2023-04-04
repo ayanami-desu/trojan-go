@@ -10,7 +10,7 @@ echo "Compiling:"
 export GOFLAGS="-trimpath"
 
 os="linux"
-arch="amd64 arm64"
+arch="amd64"
 CGO_ENABLED=0 gox -tags "server" -ldflags="-s -w -buildid=" -os="$os" -arch="$arch" -output="$output-server"
 
 os="windows linux"

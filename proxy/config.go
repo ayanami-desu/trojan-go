@@ -13,7 +13,7 @@ func init() {
 	config.RegisterConfigCreator(Name, func() interface{} {
 		return &Config{
 			LogLevel:        "error",
-			RelayBufferSize: 4 ,
+			RelayBufferSize: 4,
 		}
 	})
 }
