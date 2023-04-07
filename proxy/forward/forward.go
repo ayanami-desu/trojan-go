@@ -14,10 +14,9 @@ const Name = "FORWARD"
 
 func init() {
 	proxy.RegisterProxyCreator(Name, func(ctx context.Context) (*proxy.Proxy, error) {
-		//cfg := config.FromContext(ctx, Name).(*client.Config)
 		ctx, cancel := context.WithCancel(ctx)
 		serverStack := []string{dokodemo.Name}
-		clientStack := client.GenerateClientTree()
+		clientStack := client.GenerateClientTree(ctx)
 		c, err := proxy.CreateClientStack(ctx, clientStack)
 		if err != nil {
 			cancel()

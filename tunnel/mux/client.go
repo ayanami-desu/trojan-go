@@ -99,15 +99,10 @@ func (c *Client) newMuxClient() (*smuxClientInfo, error) {
 		return nil, common.NewError("duplicated id")
 	}
 
-	//fakeAddr := &tunnel.Address{
-	//	DomainName:  "MUX_CONN",
-	//	AddressType: tunnel.DomainName,
-	//}
 	conn, err := c.underlay.DialConn(nil, nil)
 	if err != nil {
 		return nil, common.NewError("mux failed to dial").Base(err)
 	}
-	//conn = newStickyConn(conn)
 
 	smuxConfig := smux.DefaultConfig()
 	smuxConfig.KeepAliveDisabled = true

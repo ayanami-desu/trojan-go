@@ -3,10 +3,9 @@ package mux
 import (
 	"context"
 	"errors"
+	"github.com/sagernet/smux"
 	"io"
 	"time"
-
-	"github.com/sagernet/smux"
 
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/tunnel"
