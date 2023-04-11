@@ -58,7 +58,7 @@ func Client(conn net.Conn) (*Conn, error) {
 }
 func fastlyHs(conn net.Conn, pubS []byte) (*Conn, error) {
 	nonce := newRandomData(sigLen + 16)
-	nonce[15] = byte(2 * intn(128)) //偶数
+	nonce[15] = byte(2 * common.Intn(128)) //偶数
 	pri, pub, err := generateKey()
 	if err != nil {
 		return nil, err
@@ -82,8 +82,8 @@ func fastlyHs(conn net.Conn, pubS []byte) (*Conn, error) {
 
 func makeClientPacketOne() (totalData []byte, info *selfAuthInfo) {
 	id := AuthInfo.SessionId
-	entropyLen := intRange(minPaddingLen, maxPaddingLen)
-	paddingLen := intRange(minPaddingLen, maxPaddingLen)
+	entropyLen := common.IntRange(minPaddingLen, maxPaddingLen)
+	paddingLen := common.IntRange(minPaddingLen, maxPaddingLen)
 	padding1 := newRandomData(paddingLen)
 	entropy := newRandomData(entropyLen)
 	sessionId := make([]byte, 4)
@@ -107,7 +107,7 @@ func makeClientPacketOne() (totalData []byte, info *selfAuthInfo) {
 	dataLen := make([]byte, 4)
 	dataLen[0] = byte(entropyLen)
 	binary.LittleEndian.PutUint16(dataLen[1:3], uint16(2*paddingLen+entropyLen))
-	dataLen[3] = byte(2*intn(128) - 1) //奇数
+	dataLen[3] = byte(2*common.Intn(128) - 1) //奇数
 	xorBytes(dataLen, totalData[1])
 	totalData = append(totalData, dataLen...)
 	totalData = append(totalData, padding1...)
@@ -205,7 +205,7 @@ func readServerReply(conn net.Conn, key []byte) (sig, pub []byte, err error) {
 	return
 }
 func replyServer(conn net.Conn, sig []byte) (err error) {
-	paddingLen := intRange(128, 256)
+	paddingLen := common.IntRange(128, 256)
 	padding := newRandomData(paddingLen)
 	reply := newRandomData(nonceLen)
 	reply = append(reply, sig...)

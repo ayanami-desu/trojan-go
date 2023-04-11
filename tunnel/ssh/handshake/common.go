@@ -2,6 +2,7 @@ package handshake
 
 import (
 	"crypto/rand"
+	"github.com/p4gefau1t/trojan-go/common"
 	log "github.com/sirupsen/logrus"
 	"io"
 	"net"
@@ -37,19 +38,19 @@ func xorBytes(p []byte, key byte) []byte {
 // an error happened due to possible attack.
 func readAfterError(conn net.Conn) {
 	// Set TCP read deadline to avoid being blocked forever.
-	timeoutMillis := intRange(1000, 5000)
-	timeoutMillis += fixedInt(60000) // Maximum 60 seconds.
+	timeoutMillis := common.IntRange(1000, 5000)
+	timeoutMillis += common.FixedInt(60000) // Maximum 60 seconds.
 	conn.SetReadDeadline(time.Now().Add(time.Duration(timeoutMillis) * time.Millisecond))
 
 	// Determine the read buffer size.
-	bufSizeType := fixedInt(4)
+	bufSizeType := common.FixedInt(4)
 	bufSize := 1 << (12 + bufSizeType) // 4, 8, 16, 32 KB
 	buf := make([]byte, bufSize)
 
 	// Determine the number of bytes to read.
 	// Minimum 2 bytes, maximum 1280 bytes.
-	min := intRange(2, 1026)
-	min += fixedInt(256)
+	min := common.IntRange(2, 1026)
+	min += common.FixedInt(256)
 
 	n, err := io.ReadAtLeast(conn, buf, min)
 	if err != nil {
@@ -68,7 +69,6 @@ func Init(pri, pub string) {
 		PrivateKey: priK,
 		PublicKey:  pubK,
 	}
-	initSeed()
 	TokenPool = &tokenPool{
 		Tokens: make(map[uint32]*token),
 	}

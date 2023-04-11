@@ -139,8 +139,8 @@ func handleFastlyHs(conn net.Conn) (*Conn, error) {
 	}, nil
 }
 func makeServerPacketOne(sInfo *selfAuthInfo) (totalData []byte) {
-	paddingLen := intRange(minPaddingLen, maxPaddingLen)
-	entropyLen := intRange(minPaddingLen, maxPaddingLen)
+	paddingLen := common.IntRange(minPaddingLen, maxPaddingLen)
+	entropyLen := common.IntRange(minPaddingLen, maxPaddingLen)
 	padding1 := newRandomData(paddingLen)
 	sessionId := newRandomData(sessionIdLen)
 	entropy := newRandomData(entropyLen)
@@ -195,7 +195,7 @@ func readClientReply(conn net.Conn) (sig []byte, err error) {
 	return
 }
 func replyClient(conn net.Conn, sig, key []byte) (err error) {
-	paddingLen := intRange(128, 256)
+	paddingLen := common.IntRange(128, 256)
 	padding := newRandomData(paddingLen)
 	reply := newRandomData(nonceLen)
 	reply = append(reply, sig...)

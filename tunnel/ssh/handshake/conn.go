@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/tunnel/ssh/cipher"
 	log "github.com/sirupsen/logrus"
 	"io"
@@ -33,7 +34,7 @@ type Conn struct {
 	recvBufPtr []byte // reading position of received data
 }
 
-var maxPaddingSize = 256 + fixedInt(256)
+var maxPaddingSize = 256 + common.FixedInt(256)
 
 func (c *Conn) LocalAddr() net.Addr {
 	return c.Conn.LocalAddr()
@@ -189,7 +190,7 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 		return c.writeChunk(b)
 	}
 	for len(b) > 0 {
-		sizeToSend := intRange(baseWriteChunkSize, maxWriteChunkSize)
+		sizeToSend := common.IntRange(baseWriteChunkSize, maxWriteChunkSize)
 		if sizeToSend > len(b) {
 			sizeToSend = len(b)
 		}
@@ -210,7 +211,7 @@ func (c *Conn) writeChunk(b []byte) (n int, err error) {
 	if paddingSizeLimit > maxPaddingSize {
 		paddingSizeLimit = maxPaddingSize
 	}
-	paddingSize := intn(paddingSizeLimit)
+	paddingSize := common.Intn(paddingSizeLimit)
 	payload := make([]byte, payloadOverhead+len(b)+paddingSize)
 	binary.LittleEndian.PutUint16(payload, uint16(len(b)))
 	binary.LittleEndian.PutUint16(payload[2:], uint16(len(b)+paddingSize))

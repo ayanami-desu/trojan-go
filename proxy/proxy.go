@@ -194,5 +194,6 @@ func NewProxyFromConfigData(data []byte, isJSON bool) (*Proxy, error) {
 		}
 		SetOutput(file)
 	}
+	common.InitSeed()
 	return create(ctx)
 }

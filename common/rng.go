@@ -1,8 +1,9 @@
-package handshake
+package common
 
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	log "github.com/sirupsen/logrus"
 	"hash/maphash"
 	"math"
 	mrand "math/rand"
@@ -17,25 +18,28 @@ var (
 	r              *mrand.Rand
 )
 
+const letterBytes = "abcdefghijklmnopqrstuvwxyz-0123456789"
+
 // InitSeed initializes the random seed.
-func initSeed() {
+func InitSeed() {
 	once.Do(func() {
 		r = mrand.New(mrand.NewSource(int64(new(maphash.Hash).Sum64())))
+		log.Debug("init random seed success")
 	})
 }
 
 // Intn returns a random int from [0, n) with scale down distribution.
-func intn(n int) int {
+func Intn(n int) int {
 	return int(float64(r.Intn(n+1)) * scaleDown())
 }
 
 // IntRange returns a random int from [m, n) with scale down distribution.
-func intRange(m, n int) int {
-	return m + intn(n-m)
+func IntRange(m, n int) int {
+	return m + Intn(n-m)
 }
 
 // FixedInt returns an integer in [0, n) that always stays the same within one machine.
-func fixedInt(n int) int {
+func FixedInt(n int) int {
 	if n <= 0 {
 		return 0
 	}
@@ -51,6 +55,14 @@ func fixedInt(n int) int {
 		hostFixedValue.Store(v)
 	}
 	return v % n
+}
+
+func RandomString(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[Intn(len(letterBytes))]
+	}
+	return string(b)
 }
 
 // scaleDown returns a random number from [0.0, 1.0), where

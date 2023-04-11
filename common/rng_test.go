@@ -1,8 +1,13 @@
-package handshake
+package common
 
 import (
 	"fmt"
 	"testing"
+)
+
+const (
+	down = 100
+	up   = 10000
 )
 
 func TestRng(t *testing.T) {
@@ -24,15 +29,15 @@ func rngWithoutInit(t *testing.T) {
 func generate() []int {
 	list := make([]int, 10)
 	for i := 0; i < 10; i++ {
-		list[i] = intRange(baseWriteChunkSize, maxWriteChunkSize)
+		list[i] = IntRange(down, up)
 	}
 	return list
 }
 func rngWithInit(t *testing.T) {
-	initSeed()
-	a, b := 0, intRange(baseWriteChunkSize, maxWriteChunkSize)
+	InitSeed()
+	a, b := 0, IntRange(down, up)
 	for i := 0; i < 10; i++ {
-		a = intRange(baseWriteChunkSize, maxWriteChunkSize)
+		a = IntRange(down, up)
 		if a == b {
 			fmt.Printf("test 2 failed")
 			t.Fail()
