@@ -35,30 +35,32 @@ func (s *Server) acceptLoop() {
 			}
 			continue
 		}
-		metadata := new(tunnel.Metadata)
-		if s.readMetadata {
-			if err := metadata.ReadFrom(conn); err != nil {
-				log.Errorf(common.NewError("simplesocks server faield to read header").Base(err).Error())
+		go func(conn tunnel.Conn) {
+			metadata := new(tunnel.Metadata)
+			if s.readMetadata {
+				if err := metadata.ReadFrom(conn); err != nil {
+					log.Errorf(common.NewError("simplesocks server faield to read header").Base(err).Error())
+					conn.Close()
+					return
+				}
+			} else {
+				metadata = conn.Metadata()
+			}
+			switch metadata.Command {
+			case Connect:
+				s.connChan <- &Conn{
+					metadata: metadata,
+					Conn:     conn,
+				}
+			case Associate:
+				s.packetChan <- &PacketConn{
+					Conn: conn,
+				}
+			default:
+				log.Errorf("simplesocks unknown command %d", metadata.Command)
 				conn.Close()
-				continue
 			}
-		} else {
-			metadata = conn.Metadata()
-		}
-		switch metadata.Command {
-		case Connect:
-			s.connChan <- &Conn{
-				metadata: metadata,
-				Conn:     conn,
-			}
-		case Associate:
-			s.packetChan <- &PacketConn{
-				Conn: conn,
-			}
-		default:
-			log.Errorf("simplesocks unknown command %d", metadata.Command)
-			conn.Close()
-		}
+		}(conn)
 	}
 }
 

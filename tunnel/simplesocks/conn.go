@@ -18,6 +18,7 @@ const (
 type Conn struct {
 	tunnel.Conn
 	metadata      *tunnel.Metadata
+	metadataBuf   *bytes.Buffer
 	isOutbound    bool
 	headerWritten bool
 	writeMetadata bool
@@ -29,12 +30,8 @@ func (c *Conn) Metadata() *tunnel.Metadata {
 
 func (c *Conn) Write(payload []byte) (int, error) {
 	if c.isOutbound && !c.headerWritten && c.writeMetadata {
-		buf := bytes.NewBuffer(make([]byte, 0, 4096))
-		if err := c.metadata.WriteTo(buf); err != nil {
-			return 0, common.NewError("failed to write metadata into buf").Base(err)
-		}
-		buf.Write(payload)
-		_, err := c.Conn.Write(buf.Bytes())
+		c.metadataBuf.Write(payload)
+		_, err := c.Conn.Write(c.metadataBuf.Bytes())
 		if err != nil {
 			return 0, common.NewError("failed to write simplesocks header").Base(err)
 		}
@@ -42,6 +39,15 @@ func (c *Conn) Write(payload []byte) (int, error) {
 		return len(payload), nil
 	}
 	return c.Conn.Write(payload)
+}
+
+func metadataToBytes(metadata *tunnel.Metadata) (*bytes.Buffer, error) {
+	//buf := bytes.NewBuffer(make([]byte, 0, 4096))
+	buf := new(bytes.Buffer)
+	if err := metadata.WriteTo(buf); err != nil {
+		return nil, common.NewError("failed to write metadata into buf").Base(err)
+	}
+	return buf, nil
 }
 
 type PacketConn struct {
@@ -79,7 +85,7 @@ func (c *PacketConn) WriteWithMetadata(payload []byte, metadata *tunnel.Metadata
 
 	_, err := c.Conn.Write(w.Bytes())
 
-	log.Debug("udp packet remote", c.RemoteAddr(), "metadata", metadata, "size", length)
+	log.Debugf("udp packet remote %v metadata %v size %d", c.RemoteAddr(), metadata, length)
 	return len(payload), err
 }
 
@@ -110,7 +116,7 @@ func (c *PacketConn) ReadWithMetadata(payload []byte) (int, *tunnel.Metadata, er
 		return 0, nil, common.NewError("failed to read payload")
 	}
 
-	log.Debug("udp packet from", c.RemoteAddr(), "metadata", addr.String(), "size", length)
+	log.Debugf("udp packet from %v metadata %s size %d", c.RemoteAddr(), addr.String(), length)
 	return length, &tunnel.Metadata{
 		Address: addr,
 	}, nil

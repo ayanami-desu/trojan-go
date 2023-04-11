@@ -3,13 +3,11 @@ package mux
 import (
 	"context"
 	"errors"
-	"github.com/sagernet/smux"
-	"io"
-	"time"
-
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/tunnel"
+	"github.com/sagernet/smux"
 	log "github.com/sirupsen/logrus"
+	"io"
 )
 
 // Server is a smux server
@@ -52,20 +50,20 @@ func (s *Server) acceptConnWorker() {
 						}
 						return
 					}
-					buf := make([]byte, 8)
-					stream.SetReadDeadline(time.Now().Add(time.Second))
-					_, err = io.ReadFull(stream, buf)
-					if err != nil {
-						stream.Close()
-						log.Errorf("broken stream")
-						continue
-					}
-					stream.SetReadDeadline(time.Time{})
+					//buf := make([]byte, 8)
+					//stream.SetReadDeadline(time.Now().Add(time.Second))
+					//_, err = io.ReadFull(stream, buf)
+					//if err != nil {
+					//	stream.Close()
+					//	log.Errorf("broken stream")
+					//	continue
+					//}
+					//stream.SetReadDeadline(time.Time{})
 					select {
 					case s.connChan <- &Conn{
 						rwc:  stream,
 						Conn: conn,
-						buf:  buf,
+						//buf:  buf,
 					}:
 					case <-s.ctx.Done():
 						log.Debug("exiting")

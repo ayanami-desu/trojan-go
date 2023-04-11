@@ -20,18 +20,35 @@ type Client struct {
 }
 
 func (c *Client) DialConn(addr *tunnel.Address, t tunnel.Tunnel) (tunnel.Conn, error) {
+	metadata := &tunnel.Metadata{
+		Command: Connect,
+		Address: addr,
+	}
+	if c.writeMetadata {
+		metadataBuf, err := metadataToBytes(metadata)
+		if err != nil {
+			return nil, err
+		}
+		conn, err := c.underlay.DialConn(nil, &Tunnel{})
+		if err != nil {
+			return nil, common.NewError("simplesocks failed to dial using underlying tunnel").Base(err)
+		}
+		return &Conn{
+			Conn:          conn,
+			isOutbound:    true,
+			writeMetadata: c.writeMetadata,
+			metadata:      metadata,
+			metadataBuf:   metadataBuf,
+		}, nil
+	}
 	conn, err := c.underlay.DialConn(addr, &Tunnel{})
 	if err != nil {
 		return nil, common.NewError("simplesocks failed to dial using underlying tunnel").Base(err)
 	}
 	return &Conn{
 		Conn:          conn,
-		isOutbound:    true,
 		writeMetadata: c.writeMetadata,
-		metadata: &tunnel.Metadata{
-			Command: Connect,
-			Address: addr,
-		},
+		metadata:      metadata,
 	}, nil
 }
 

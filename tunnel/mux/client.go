@@ -59,7 +59,7 @@ func (c *Client) cleanLoop() {
 	} else {
 		checkDuration = c.timeout / 4
 	}
-	log.Debug("check duration:", checkDuration.Seconds(), "s")
+	log.Debugf("check duration: %v s", checkDuration.Seconds())
 	for {
 		select {
 		case <-time.After(checkDuration):
@@ -69,7 +69,7 @@ func (c *Client) cleanLoop() {
 					info.client.Close()
 					info.underlayConn.Close()
 					delete(c.clientPool, id)
-					log.Info("mux client", id, "is closed due to inactivity")
+					log.Infof("mux client %d is closed due to inactivity", id)
 				}
 			}
 			log.Debugf("current mux clients: %d", len(c.clientPool))
@@ -84,7 +84,7 @@ func (c *Client) cleanLoop() {
 				info.client.Close()
 				info.underlayConn.Close()
 				delete(c.clientPool, id)
-				log.Debug("mux client", id, "closed")
+				log.Debugf("mux client %d closed", id)
 			}
 			c.clientPoolLock.Unlock()
 			return
