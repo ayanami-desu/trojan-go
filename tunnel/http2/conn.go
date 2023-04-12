@@ -3,6 +3,7 @@ package http2
 import (
 	"context"
 	"fmt"
+	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/tunnel"
 	icommon "github.com/p4gefau1t/trojan-go/tunnel/http2/common"
 	log "github.com/sirupsen/logrus"
@@ -11,7 +12,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"sync"
 	"time"
 )
 
@@ -207,31 +207,23 @@ func (l *listen) Addr() net.Addr {
 }
 
 type host struct {
-	values []string
-	num    int
-	cur    int
-	mu     sync.Mutex
+	on      time.Time
+	value   string
+	timeout time.Duration
 }
 
 func (h *host) get() string {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	s := h.values[h.cur]
-	h.cur += 1
-	if h.cur == h.num {
-		h.cur = 0
+	if time.Since(h.on) > h.timeout {
+		h.value = common.RandomString(12)
+		h.on = time.Now()
 	}
-	return s
+	return fmt.Sprintf("www.%s.com", h.value)
 }
 
-func generateHostList(n int) *host {
-	var s []string
-	for i := 0; i < n; i++ {
-		s = append(s, fmt.Sprintf("www.%c.com", 'a'+i))
-	}
+func generateHostList(timeout time.Duration) *host {
 	return &host{
-		values: s,
-		num:    n,
-		cur:    0,
+		on:      time.Now(),
+		value:   common.RandomString(12),
+		timeout: timeout,
 	}
 }

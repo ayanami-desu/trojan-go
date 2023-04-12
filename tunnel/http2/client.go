@@ -17,12 +17,32 @@ import (
 )
 
 type Client struct {
-	http2Client *nhttp.Client
-	hostList    *host
-	bufferSize  int32
-	underlay    tunnel.Client
-	ctx         context.Context
-	cancel      context.CancelFunc
+	http2Transport *nhttp2.Transport
+	http2Client    *nhttp.Client
+	hostList       *host
+	bufferSize     int32
+	underlay       tunnel.Client
+	ctx            context.Context
+	cancel         context.CancelFunc
+}
+
+func (c *Client) cleanLoop(t int) {
+	var checkDuration time.Duration
+	if t <= 300 {
+		checkDuration = time.Second * 30
+	} else {
+		checkDuration = time.Second * (time.Duration(t / 10))
+	}
+	log.Debugf("checkDuration is %v s", checkDuration.Seconds())
+	for {
+		select {
+		case <-time.After(checkDuration):
+			c.http2Transport.CloseIdleConnections()
+			log.Debug("closed all idle connections")
+		case <-c.ctx.Done():
+			return
+		}
+	}
 }
 
 func (c *Client) DialConn(addr *tunnel.Address, _ tunnel.Tunnel) (tunnel.Conn, error) {
@@ -85,15 +105,17 @@ func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
 		t.PingTimeout = time.Duration(cfg.Http2.HealthCheckTimeout) * time.Second
 	}
 	httpClient := &nhttp.Client{Transport: t}
-	hostList := generateHostList(cfg.Http2.MaxConnNum)
+	hostList := generateHostList(time.Duration(cfg.Http2.MaxConnTime) * time.Second)
 	client := &Client{
-		http2Client: httpClient,
-		underlay:    underlay,
-		bufferSize:  1024 * cfg.Http2.BufferSize,
-		hostList:    hostList,
-		ctx:         ctx,
-		cancel:      cancel,
+		http2Transport: t,
+		http2Client:    httpClient,
+		underlay:       underlay,
+		bufferSize:     1024 * cfg.Http2.BufferSize,
+		hostList:       hostList,
+		ctx:            ctx,
+		cancel:         cancel,
 	}
+	go client.cleanLoop(cfg.Http2.MaxConnTime)
 	log.Debug("http2 client created")
 	return client, nil
 }
