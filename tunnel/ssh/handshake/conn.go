@@ -16,16 +16,9 @@ import (
 
 type Conn struct {
 	net.Conn
-	SessionId   []byte
-	isClient    bool
-	changeKey   bool
-	sharedKey   []byte
-	ephShareKey []byte
-	pubToSend   []byte
-	pubReceived []byte
-	hkData      []byte
-	// ephPri 客户端生成的私钥
-	ephPri     []byte
+	SessionId  []byte
+	isClient   bool
+	sharedKey  []byte
 	sendMutex  sync.Mutex // mutex used when write data to the connection
 	recvMutex  sync.Mutex // mutex used when read data from the connection
 	recv       cipher.BlockCipher
@@ -77,56 +70,17 @@ func (c *Conn) readInternal(b []byte) (n int, err error) {
 	//}
 	// Read encrypted payload length.
 	readLen := 2 + cipher.DefaultOverhead
-	if c.recv == nil || c.changeKey {
+	if c.recv == nil {
 		// For the first Read, also include nonce.
 		readLen += cipher.DefaultNonceSize
 	}
 
 	if c.recv == nil {
-		if len(c.sharedKey) != 0 {
-			c.recv, err = cipher.NewAESGCMBlockCipher(c.sharedKey)
-			if err != nil {
-				log.Fatalf("创建读加密块失败: %v", err)
-			}
-		} else {
-			if c.isClient {
-				// 客户端进行0rtt握手, 读取服务端临时公钥
-				pubData := make([]byte, sigLen+16)
-				n, err = io.ReadFull(c.Conn, pubData)
-				if err != nil {
-					return 0, err
-				}
-				if pubData[15] == byte(255) {
-					TokenPool.clear()
-					if verifyServerMsg(c.pubToSend, pubData) {
-						return 0, fmt.Errorf("使用的服务端临时公钥已过期")
-					} else {
-						return 0, fmt.Errorf("无法认证服务端身份, 但什么也做不了")
-					}
-				}
-				pubC := pubData[16 : 16+ephPubKeyLen]
-				// 这是最终的共享密钥
-				secret, err := generateSharedSecret(c.ephPri, pubC)
-				if err != nil {
-					return 0, err
-				}
-				c.sharedKey = secret
-				c.changeKey = true
-			} else {
-				//服务端处理0rtt握手, 读取客户端临时公钥
-				c.recv, err = cipher.NewAESGCMBlockCipher(c.ephShareKey)
-				if err != nil {
-					log.Fatalf("创建读加密块失败: %v", err)
-				}
-			}
-		}
-	}
-	if c.changeKey {
 		c.recv, err = cipher.NewAESGCMBlockCipher(c.sharedKey)
 		if err != nil {
 			log.Fatalf("创建读加密块失败: %v", err)
+
 		}
-		c.changeKey = false
 	}
 
 	encryptedLen := make([]byte, readLen)
@@ -178,7 +132,7 @@ func (c *Conn) readInternal(b []byte) (n int, err error) {
 	copy(c.recvBuf, decryptedPayload[payloadOverhead:payloadOverhead+usefulSize])
 	n = copy(b, c.recvBuf)
 	c.recvBufPtr = c.recvBuf[n:]
-	log.Tracef("ssh conn read %d bytes from wire", n)
+	//log.Tracef("ssh conn read %d bytes from wire", n)
 	return n, nil
 }
 
@@ -222,44 +176,11 @@ func (c *Conn) writeChunk(b []byte) (n int, err error) {
 
 	// Create send block cipher if needed.
 	if c.send == nil {
-		if len(c.sharedKey) != 0 {
-			c.send, err = cipher.NewAESGCMBlockCipher(c.sharedKey)
-			if err != nil {
-				log.Fatalf("创建写加密块失败: %v", err)
-			}
-		} else {
-			if c.isClient {
-				//客户端开始0rtt握手, 发送临时公钥
-				c.send, err = cipher.NewAESGCMBlockCipher(c.ephShareKey)
-				if err != nil {
-					log.Fatalf("创建写加密块失败: %v", err)
-				}
-			} else {
-				//服务端处理0rtt握手, 发送临时公钥
-				pri, pub, err := generateKey()
-				if err != nil {
-					return 0, nil
-				}
-				// 这是最终的共享密钥
-				secret, err := generateSharedSecret(pri[:], c.pubReceived)
-				if err != nil {
-					return 0, nil
-				}
-				nonce := newRandomData(sigLen + 16)
-				copy(nonce[16:16+ephPubKeyLen], pub[:])
-				c.hkData = nonce
-
-				c.sharedKey = secret
-				c.changeKey = true
-			}
-		}
-	}
-	if c.changeKey {
 		c.send, err = cipher.NewAESGCMBlockCipher(c.sharedKey)
 		if err != nil {
 			log.Fatalf("创建写加密块失败: %v", err)
 		}
-		c.changeKey = false
+
 	}
 	// Create encrypted payload length.
 	plaintextLen := make([]byte, 2)
@@ -267,10 +188,6 @@ func (c *Conn) writeChunk(b []byte) (n int, err error) {
 	encryptedLen, err := c.send.Encrypt(plaintextLen)
 	if err != nil {
 		return 0, fmt.Errorf("encrypt() failed: %w", err)
-	}
-	if len(c.hkData) != 0 {
-		encryptedLen = append(c.hkData, encryptedLen...)
-		c.hkData = nil
 	}
 	// Create encrypted payload.
 	encryptedPayload, err := c.send.Encrypt(payload)
@@ -284,7 +201,7 @@ func (c *Conn) writeChunk(b []byte) (n int, err error) {
 	if _, err := io.WriteString(c.Conn, string(dataToSend)); err != nil {
 		return 0, fmt.Errorf("io.WriteString() failed: %w", err)
 	}
-	log.Tracef("ssh conn wrote %d bytes to wire", len(b))
+	//log.Tracef("ssh conn wrote %d bytes to wire", len(b))
 	return len(b), nil
 }
 func (c *Conn) Close() error {

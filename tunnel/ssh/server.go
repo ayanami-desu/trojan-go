@@ -12,6 +12,7 @@ import (
 
 type Server struct {
 	underlay tunnel.Server
+	hkFunc   handshake.HkFunc
 	connChan chan tunnel.Conn
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -42,14 +43,14 @@ func (s *Server) acceptLoop() {
 			return
 		}
 		go func(conn net.Conn) {
-			tlsConn, err := handshake.Server(conn)
+			sshConn, err := s.hkFunc.HandleHandShake(conn)
 			if err != nil {
 				log.Warnf("server failed to handshake: %v", err)
 				conn.Close()
 				return
 			}
 			s.connChan <- &Conn{
-				Conn: tlsConn,
+				Conn: sshConn,
 			}
 		}(conn)
 	}
@@ -60,11 +61,11 @@ func (s *Server) AcceptPacket(tunnel.Tunnel) (tunnel.PacketConn, error) {
 
 func NewServer(ctx context.Context, underlay tunnel.Server) (*Server, error) {
 	cfg := config.FromContext(ctx, Name).(*Config)
-	handshake.Init(cfg.Ssh.Pri, cfg.Ssh.Pub)
-	handshake.AuthInfo.FastHkEnable = cfg.Ssh.FastHkEnable
+	hk := handshake.Init(cfg.Ssh.Pri, cfg.Ssh.Pub, cfg.Ssh.Rtt)
 	ctx, cancel := context.WithCancel(ctx)
 	server := &Server{
 		underlay: underlay,
+		hkFunc:   hk,
 		connChan: make(chan tunnel.Conn, 32),
 		ctx:      ctx,
 		cancel:   cancel,

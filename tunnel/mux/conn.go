@@ -8,15 +8,9 @@ import (
 type Conn struct {
 	rwc io.ReadWriteCloser
 	tunnel.Conn
-	//buf []byte
 }
 
 func (c *Conn) Read(p []byte) (int, error) {
-	//if len(c.buf) > 0 {
-	//	n := copy(p, c.buf)
-	//	c.buf = c.buf[n:]
-	//	return n, nil
-	//}
 	return c.rwc.Read(p)
 }
 

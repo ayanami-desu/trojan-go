@@ -2,86 +2,16 @@ package handshake
 
 import (
 	"crypto"
-	"crypto/ed25519"
 	"encoding/binary"
 	"fmt"
 	"github.com/p4gefau1t/trojan-go/common"
 	log "github.com/sirupsen/logrus"
 	"io"
 	"net"
-	"time"
 )
 
-func Client(conn net.Conn) (*Conn, error) {
-	conn.SetReadDeadline(time.Now().Add(readTimeOut))
-	defer conn.SetReadDeadline(time.Time{})
-
-	if AuthInfo.FastHkEnable {
-		if c, err := TokenPool.pickPub(); err == nil {
-			return fastlyHs(conn, c)
-		}
-	}
-	payload, cInfo := makeClientPacketOne()
-	_, err := conn.Write(payload)
-	if err != nil {
-		return nil, common.NewError("failed to send packet").Base(err)
-	}
-	buf, err := readServerPacketOne(conn)
-	if err != nil {
-		return nil, common.NewError("failed to read server packet").Base(err)
-	}
-	H, secret, err := handleServerPacketOne(buf, cInfo)
-	sig := ed25519.Sign(AuthInfo.PrivateKey, H)
-	if err := replyServer(conn, sig); err != nil {
-		return nil, common.NewError("client failed to reply sig").Base(err)
-	}
-	serverSig, decryptedPub, err := readServerReply(conn, secret)
-	if err != nil {
-		return nil, common.NewError("client failed to read server sig").Base(err)
-	}
-	if !ed25519.Verify(AuthInfo.PublicKey, H, serverSig) {
-		err = fmt.Errorf("服务端签名验证未通过")
-		return nil, err
-	}
-	if AuthInfo.FastHkEnable {
-		if err := TokenPool.add(decryptedPub); err != nil {
-			return nil, err
-		}
-	}
-	return &Conn{
-		Conn:      conn,
-		SessionId: cInfo.SessionId,
-		sharedKey: secret,
-		isClient:  true,
-		recvBuf:   make([]byte, maxPayloadSize),
-	}, nil
-}
-func fastlyHs(conn net.Conn, pubS []byte) (*Conn, error) {
-	nonce := newRandomData(sigLen + 16)
-	nonce[15] = byte(2 * common.Intn(128)) //偶数
-	pri, pub, err := generateKey()
-	if err != nil {
-		return nil, err
-	}
-	copy(nonce[16:16+ephPubKeyLen], pub[:])
-	if len(AuthInfo.SessionId) != 0 {
-		copy(nonce[16+ephPubKeyLen:16+ephPubKeyLen+sessionIdLen], AuthInfo.SessionId)
-	}
-	secret, err := generateSharedSecret(pri[:], pubS)
-	return &Conn{
-		Conn:        conn,
-		SessionId:   AuthInfo.SessionId,
-		ephShareKey: secret,
-		ephPri:      pri[:],
-		pubToSend:   nonce[16:],
-		isClient:    true,
-		hkData:      nonce,
-		recvBuf:     make([]byte, maxPayloadSize),
-	}, nil
-}
-
 func makeClientPacketOne() (totalData []byte, info *selfAuthInfo) {
-	id := AuthInfo.SessionId
+	id := auth.SessionId
 	entropyLen := common.IntRange(minPaddingLen, maxPaddingLen)
 	paddingLen := common.IntRange(minPaddingLen, maxPaddingLen)
 	padding1 := newRandomData(paddingLen)
@@ -107,7 +37,7 @@ func makeClientPacketOne() (totalData []byte, info *selfAuthInfo) {
 	dataLen := make([]byte, 4)
 	dataLen[0] = byte(entropyLen)
 	binary.LittleEndian.PutUint16(dataLen[1:3], uint16(2*paddingLen+entropyLen))
-	dataLen[3] = byte(2*common.Intn(128) - 1) //奇数
+	dataLen[3] = byte(common.Intn(256))
 	xorBytes(dataLen, totalData[1])
 	totalData = append(totalData, dataLen...)
 	totalData = append(totalData, padding1...)
@@ -119,7 +49,6 @@ func makeClientPacketOne() (totalData []byte, info *selfAuthInfo) {
 	return
 }
 func readServerPacketOne(conn net.Conn) (buf []byte, err error) {
-
 	nonce := make([]byte, nonceLen)
 	_, err = io.ReadFull(conn, nonce)
 	if err != nil {
@@ -173,7 +102,7 @@ func handleServerPacketOne(buf []byte, cInfo *selfAuthInfo) (H, secret []byte, e
 	return
 }
 
-func readServerReply(conn net.Conn, key []byte) (sig, pub []byte, err error) {
+func readServerReply(conn net.Conn) (sig []byte, err error) {
 	nonce := make([]byte, nonceLen)
 	_, err = io.ReadFull(conn, nonce)
 	if err != nil {
@@ -189,17 +118,6 @@ func readServerReply(conn net.Conn, key []byte) (sig, pub []byte, err error) {
 	_, err = io.ReadFull(conn, padding)
 	if err != nil {
 		return
-	}
-	if AuthInfo.FastHkEnable {
-		encryptedPub := make([]byte, ephPubKeyLen+authTagSize)
-		_, err = io.ReadFull(conn, encryptedPub)
-		if err != nil {
-			return
-		}
-		pub, err = decrypt(encryptedPub, key)
-		if err != nil {
-			return
-		}
 	}
 	sig = sigAndPaddingLen[:sigLen]
 	return

@@ -3,10 +3,20 @@ package handshake
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"fmt"
+	"github.com/p4gefau1t/trojan-go/common"
 	"golang.org/x/crypto/curve25519"
 	"io"
 )
+
+func GenerateKeyString() (string, string, error) {
+	priBytes, pubBytes, err := generateKey()
+	if err != nil {
+		return "", "", err
+	}
+	pri := base64.StdEncoding.EncodeToString(priBytes[:])
+	pub := base64.StdEncoding.EncodeToString(pubBytes[:])
+	return pri, pub, nil
+}
 
 func generateKey() (pri, pub [32]byte, err error) {
 	_, err = io.ReadFull(rand.Reader, pri[:])
@@ -15,6 +25,8 @@ func generateKey() (pri, pub [32]byte, err error) {
 	}
 
 	pri[0] &= 248
+	pri[9] ^= 64
+	pri[18] ^= 89
 	pri[31] &= 127
 	pri[31] |= 64
 
@@ -37,23 +49,24 @@ func writeString(w io.Writer, s []byte) {
 }
 
 func loadKeyPair(pri, pub string) (priK, pubK []byte, err error) {
-	if len(pri) == 0 {
-		err = fmt.Errorf("must have a valid private key")
-		return
-	}
-	if len(pub) == 0 {
-		err = fmt.Errorf("must have a valid public key")
-		return
-	}
-	pubK, err = base64.StdEncoding.DecodeString(pub)
+	pubK, err = parseStringKey(pub)
 	if err != nil {
-		err = fmt.Errorf("使用base64解码公钥字符串失败")
 		return
 	}
-	priK, err = base64.StdEncoding.DecodeString(pri)
+	priK, err = parseStringKey(pri)
 	if err != nil {
-		err = fmt.Errorf("使用base64解码私钥字符串失败")
 		return
 	}
 	return
+}
+
+func parseStringKey(s string) ([]byte, error) {
+	if len(s) == 0 {
+		return nil, common.NewError("must have a valid key string")
+	}
+	key, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return nil, common.NewError("使用base64解码密钥字符串失败")
+	}
+	return key, nil
 }

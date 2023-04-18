@@ -3,18 +3,17 @@ package client
 import (
 	"context"
 	"github.com/p4gefau1t/trojan-go/config"
-	"github.com/p4gefau1t/trojan-go/tunnel/http2"
-	"github.com/p4gefau1t/trojan-go/tunnel/multiplex"
-	"github.com/p4gefau1t/trojan-go/tunnel/mux"
-	"github.com/p4gefau1t/trojan-go/tunnel/ssh"
-	"log"
-
 	"github.com/p4gefau1t/trojan-go/proxy"
 	"github.com/p4gefau1t/trojan-go/tunnel/adapter"
 	"github.com/p4gefau1t/trojan-go/tunnel/http"
+	"github.com/p4gefau1t/trojan-go/tunnel/http2"
+	"github.com/p4gefau1t/trojan-go/tunnel/multiplex"
+	"github.com/p4gefau1t/trojan-go/tunnel/mux"
 	"github.com/p4gefau1t/trojan-go/tunnel/simplesocks"
 	"github.com/p4gefau1t/trojan-go/tunnel/socks"
+	"github.com/p4gefau1t/trojan-go/tunnel/ssh"
 	"github.com/p4gefau1t/trojan-go/tunnel/transport"
+	log "github.com/sirupsen/logrus"
 )
 
 const Name = "CLIENT"
@@ -32,10 +31,12 @@ func GenerateClientTree(ctx context.Context) []string {
 	case "multiplex":
 		s = multiplex.Name
 	default:
-		log.Fatalf("unknown mux type: %s", cfg.MuxType)
+		log.Warnf("unknown mux type: %s", cfg.MuxType)
 	}
 	clientStack = append(clientStack, ssh.Name)
-	clientStack = append(clientStack, s)
+	if s != "" {
+		clientStack = append(clientStack, s)
+	}
 	clientStack = append(clientStack, simplesocks.Name)
 	return clientStack
 }

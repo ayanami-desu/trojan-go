@@ -3,6 +3,7 @@ package http2
 import (
 	"context"
 	"crypto/tls"
+	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
 	"github.com/p4gefau1t/trojan-go/tunnel"
 	icommon "github.com/p4gefau1t/trojan-go/tunnel/http2/common"
@@ -80,7 +81,7 @@ func (c *Client) DialConn(addr *tunnel.Address, _ tunnel.Tunnel) (tunnel.Conn, e
 	}()
 
 	bwriter := buf.NewBufferedWriter(pwriter)
-	icommon.Must(bwriter.SetBuffered(false))
+	common.Must(bwriter.SetBuffered(false))
 	conn := newConnection(wrc, bwriter, icommon.ChainedClosable{breader, bwriter, wrc})
 	return &Conn{
 		Conn: conn,

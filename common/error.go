@@ -1,9 +1,5 @@
 package common
 
-import (
-	"fmt"
-)
-
 type Error struct {
 	info string
 }
@@ -27,14 +23,12 @@ func NewError(info string) *Error {
 
 func Must(err error) {
 	if err != nil {
-		fmt.Println(err)
 		panic(err)
 	}
 }
 
 func Must2(_ interface{}, err error) {
 	if err != nil {
-		fmt.Println(err)
 		panic(err)
 	}
 }

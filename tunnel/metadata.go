@@ -34,7 +34,8 @@ func (r *Metadata) ReadFrom(rr io.Reader) error {
 }
 
 func (r *Metadata) WriteTo(w io.Writer) error {
-	buf := bytes.NewBuffer(make([]byte, 0, 64))
+	//buf := bytes.NewBuffer(make([]byte, 0, 64))
+	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(r.Command))
 	if err := r.Address.WriteTo(buf); err != nil {
 		return err

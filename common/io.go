@@ -118,24 +118,3 @@ func NewRewindConn(conn net.Conn) *RewindConn {
 		},
 	}
 }
-
-type StickyWriter struct {
-	rawWriter   io.Writer
-	writeBuffer []byte
-	MaxBuffered int
-}
-
-func (w *StickyWriter) Write(p []byte) (int, error) {
-	if w.MaxBuffered > 0 {
-		w.MaxBuffered--
-		w.writeBuffer = append(w.writeBuffer, p...)
-		if w.MaxBuffered != 0 {
-			return len(p), nil
-		}
-		w.MaxBuffered = 0
-		_, err := w.rawWriter.Write(w.writeBuffer)
-		w.writeBuffer = nil
-		return len(p), err
-	}
-	return w.rawWriter.Write(p)
-}

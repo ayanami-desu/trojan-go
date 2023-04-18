@@ -11,6 +11,7 @@ import (
 
 type Client struct {
 	sessionId []byte
+	hkFunc    handshake.HkFunc
 	underlay  tunnel.Client
 	ctx       context.Context
 	cancel    context.CancelFunc
@@ -32,14 +33,14 @@ func (c *Client) DialConn(_ *tunnel.Address, _ tunnel.Tunnel) (tunnel.Conn, erro
 	if err != nil {
 		return nil, common.NewError("ssh failed to dial conn").Base(err)
 	}
-	handshake.AuthInfo.SessionId = c.sessionId
-	tlsConn, err := handshake.Client(conn)
+	//handshake.auth.SessionId = c.sessionId
+	sshConn, err := c.hkFunc.HandShake(conn)
 	if err != nil {
 		conn.Close()
 		return nil, common.NewError("ssh failed to handshake with remote server").Base(err)
 	}
 	return &Conn{
-		Conn: tlsConn,
+		Conn: sshConn,
 	}, nil
 }
 
@@ -48,10 +49,10 @@ func (c *Client) Close() error {
 }
 func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
 	cfg := config.FromContext(ctx, Name).(*Config)
-	handshake.Init(cfg.Ssh.Pri, cfg.Ssh.Pub)
-	handshake.AuthInfo.FastHkEnable = cfg.Ssh.FastHkEnable
+	hk := handshake.Init(cfg.Ssh.Pri, cfg.Ssh.Pub, cfg.Ssh.Rtt)
 	ctx, cancel := context.WithCancel(ctx)
 	client := &Client{
+		hkFunc:   hk,
 		underlay: underlay,
 		ctx:      ctx,
 		cancel:   cancel,

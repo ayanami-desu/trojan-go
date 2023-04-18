@@ -2,11 +2,9 @@ package proxy
 
 import (
 	"bufio"
-	"crypto/ed25519"
-	"crypto/rand"
-	"encoding/base64"
 	"flag"
 	"fmt"
+	"github.com/p4gefau1t/trojan-go/option"
 	"io"
 	"os"
 	"runtime"
@@ -14,7 +12,6 @@ import (
 
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/constant"
-	"github.com/p4gefau1t/trojan-go/option"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -94,19 +91,6 @@ func (o *Option) Priority() int {
 	return -1
 }
 
-func init() {
-	option.RegisterHandler(&Option{
-		path: flag.String("config", "", "Trojan-Go config filename (.yaml/.yml/.json)"),
-	})
-	option.RegisterHandler(&StdinOption{
-		format:       flag.String("stdin-format", "disabled", "Read from standard input (yaml/json)"),
-		suppressHint: flag.Bool("stdin-suppress-hint", false, "Suppress hint text"),
-	})
-	option.RegisterHandler(&keyOption{
-		key: flag.Bool("key", false, "generate key pairs for server and client"),
-	})
-}
-
 type StdinOption struct {
 	format       *string
 	suppressHint *bool
@@ -122,7 +106,7 @@ func (o *StdinOption) Handle() error {
 		return e
 	}
 
-	if o.suppressHint == nil || !*o.suppressHint {
+	if !*o.suppressHint {
 		fmt.Printf("Trojan-Go %s (%s/%s)\n", constant.Version, runtime.GOOS, runtime.GOARCH)
 		if isJSON {
 			fmt.Println("Reading JSON configuration from stdin.")
@@ -161,36 +145,12 @@ func (o *StdinOption) isFormatJson() (isJson bool, e error) {
 	return strings.ToLower(*o.format) == "json", nil
 }
 
-type keyOption struct {
-	key *bool
-}
-
-func (k *keyOption) Name() string {
-	return "KEY"
-}
-
-func (k *keyOption) Handle() error {
-	if !*k.key {
-		return nil
-	}
-	pri, pub, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		return err
-	}
-	pri1, pub1, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		return err
-	}
-	priS := base64.StdEncoding.EncodeToString(pri)
-	pubS := base64.StdEncoding.EncodeToString(pub1)
-	priC := base64.StdEncoding.EncodeToString(pri1)
-	pubC := base64.StdEncoding.EncodeToString(pub)
-	fmt.Printf("private key for server: %s\n", priS)
-	fmt.Printf("public key for server: %s\n", pubS)
-	fmt.Printf("private key for client: %s\n", priC)
-	fmt.Printf("public key for client: %s", pubC)
-	return nil
-}
-func (k *keyOption) Priority() int {
-	return -10
+func init() {
+	option.RegisterHandler(&Option{
+		path: flag.String("config", "", "Trojan-Go config filename (.yaml/.yml/.json)"),
+	})
+	option.RegisterHandler(&StdinOption{
+		format:       flag.String("stdin-format", "disabled", "Read from standard input (yaml/json)"),
+		suppressHint: flag.Bool("stdin-suppress-hint", false, "Suppress hint text"),
+	})
 }

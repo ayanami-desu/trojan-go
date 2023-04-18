@@ -50,15 +50,6 @@ func (s *Server) acceptConnWorker() {
 						}
 						return
 					}
-					//buf := make([]byte, 8)
-					//stream.SetReadDeadline(time.Now().Add(time.Second))
-					//_, err = io.ReadFull(stream, buf)
-					//if err != nil {
-					//	stream.Close()
-					//	log.Errorf("broken stream")
-					//	continue
-					//}
-					//stream.SetReadDeadline(time.Time{})
 					select {
 					case s.connChan <- &Conn{
 						rwc:  stream,

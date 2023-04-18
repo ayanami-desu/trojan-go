@@ -60,16 +60,28 @@ func readAfterError(conn net.Conn) {
 	}
 }
 
-func Init(pri, pub string) {
+type HkFunc interface {
+	HandShake(conn net.Conn) (net.Conn, error)
+	HandleHandShake(conn net.Conn) (net.Conn, error)
+}
+
+func Init(pri, pub string, rtt int) HkFunc {
 	priK, pubK, err := loadKeyPair(pri, pub)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
-	AuthInfo = &authInfo{
+	auth = &authInfo{
 		PrivateKey: priK,
 		PublicKey:  pubK,
 	}
-	TokenPool = &tokenPool{
-		Tokens: make(map[uint32]*token),
+	var hk HkFunc
+	switch rtt {
+	case OneRtt:
+		hk = &oneRtt{auth}
+	case TwoRtt:
+		hk = &twoRtt{auth}
+	default:
+		log.Fatal("unknown handshake method")
 	}
+	return hk
 }

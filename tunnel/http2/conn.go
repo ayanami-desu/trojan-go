@@ -156,7 +156,7 @@ func (c *connection) WriteMultiBuffer(mb buf.MultiBuffer) error {
 
 // Close implements net.Conn.Close().
 func (c *connection) Close() error {
-	icommon.Must(c.done.Close())
+	common.Must(c.done.Close())
 	icommon.Interrupt(c.reader)
 	icommon.Close(c.writer)
 	if c.onClose != nil {

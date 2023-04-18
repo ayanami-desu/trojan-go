@@ -46,9 +46,13 @@ func init() {
 		case "multiplex":
 			s = multiplex.Name
 		default:
-			log.Fatalf("unknown mux type: %s", cfg.MuxType)
+			log.Warnf("unknown mux type: %s", cfg.MuxType)
 		}
-		root.BuildNext(ssh.Name).BuildNext(s).BuildNext(simplesocks.Name).IsEndpoint = true
+		if s != "" {
+			root.BuildNext(ssh.Name).BuildNext(s).BuildNext(simplesocks.Name).IsEndpoint = true
+		} else {
+			root.BuildNext(ssh.Name).BuildNext(simplesocks.Name).IsEndpoint = true
+		}
 		serverList := proxy.FindAllEndpoints(root)
 		clientList, err := proxy.CreateClientStack(ctx, clientStack)
 		if err != nil {
