@@ -5,8 +5,8 @@ import (
 	"github.com/p4gefau1t/trojan-go/config"
 	"github.com/p4gefau1t/trojan-go/proxy/client"
 	"github.com/p4gefau1t/trojan-go/tunnel/http2"
-	"github.com/p4gefau1t/trojan-go/tunnel/multiplex"
 	"github.com/p4gefau1t/trojan-go/tunnel/mux"
+	"github.com/p4gefau1t/trojan-go/tunnel/singmux"
 	"github.com/p4gefau1t/trojan-go/tunnel/ssh"
 	log "github.com/sirupsen/logrus"
 
@@ -43,9 +43,10 @@ func init() {
 			s = http2.Name
 		case "mux":
 			s = mux.Name
-		case "multiplex":
-			s = multiplex.Name
+		case "sing-mux":
+			s = singmux.Name
 		default:
+			s = ""
 			log.Warnf("unknown mux type: %s", cfg.MuxType)
 		}
 		if s != "" {

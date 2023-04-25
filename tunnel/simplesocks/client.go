@@ -3,6 +3,7 @@ package simplesocks
 import (
 	"context"
 	"github.com/p4gefau1t/trojan-go/tunnel/http2"
+	"github.com/p4gefau1t/trojan-go/tunnel/singmux"
 
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/tunnel"
@@ -77,7 +78,9 @@ func (c *Client) Close() error {
 }
 
 func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
-	_, ok := underlay.(*http2.Client)
+	_, ok1 := underlay.(*http2.Client)
+	_, ok2 := underlay.(*singmux.Client)
+	ok := ok1 || ok2
 	log.Debug("simplesocks client created")
 	return &Client{
 		writeMetadata: !ok,

@@ -1,14 +1,15 @@
-package mux
+package singmux
 
 import (
 	"context"
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/tunnel"
-	"github.com/sagernet/smux"
+	smux "github.com/sagernet/sing-mux"
+	"github.com/sagernet/sing/common/logger"
+	M "github.com/sagernet/sing/common/metadata"
 	log "github.com/sirupsen/logrus"
 )
 
-// Server is a smux server
 type Server struct {
 	underlay tunnel.Server
 	connChan chan tunnel.Conn
@@ -29,32 +30,9 @@ func (s *Server) acceptConnWorker() {
 			continue
 		}
 		go func(conn tunnel.Conn) {
-			smuxConfig := smux.DefaultConfig()
-			smuxConfig.KeepAliveDisabled = true
-			smuxSession, err := smux.Server(conn, smuxConfig)
-			if err != nil {
+			if err := smux.HandleConnection(s.ctx, handler, logger.NOP(), conn, M.Metadata{}); err != nil {
 				log.Error(err)
-				return
 			}
-			go func(session *smux.Session, conn tunnel.Conn) {
-				defer session.Close()
-				for {
-					stream, err := session.AcceptStream()
-					if err != nil {
-						log.Error(err)
-						return
-					}
-					select {
-					case s.connChan <- &Conn{
-						rwc:  stream,
-						Conn: conn,
-					}:
-					case <-s.ctx.Done():
-						log.Debug("exiting")
-						return
-					}
-				}
-			}(smuxSession, conn)
 		}(conn)
 	}
 }
@@ -64,12 +42,12 @@ func (s *Server) AcceptConn(tunnel.Tunnel) (tunnel.Conn, error) {
 	case conn := <-s.connChan:
 		return conn, nil
 	case <-s.ctx.Done():
-		return nil, common.NewError("mux server closed")
+		return nil, common.NewError("sing-mux server closed")
 	}
 }
 
 func (s *Server) AcceptPacket(tunnel.Tunnel) (tunnel.PacketConn, error) {
-	panic("not supported")
+	panic("implement me")
 }
 
 func (s *Server) Close() error {
@@ -85,7 +63,10 @@ func NewServer(ctx context.Context, underlay tunnel.Server) (*Server, error) {
 		cancel:   cancel,
 		connChan: make(chan tunnel.Conn, 32),
 	}
+	handler = &serverHandler{
+		server: server,
+	}
 	go server.acceptConnWorker()
-	log.Debug("mux server created")
+	log.Debug("sing-mux server created")
 	return server, nil
 }

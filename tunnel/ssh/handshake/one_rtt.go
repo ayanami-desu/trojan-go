@@ -30,8 +30,8 @@ func (c *oneRtt) HandShake(conn net.Conn) (net.Conn, error) {
 	}
 	copy(nonceData[pubIdx:pubIdx+ephPubKeyLen], ephPub[:])
 	entropy := common.RandomString(32)
-	headers := make(http.Header)
-	headers.Set("index", strconv.Itoa(pubIdx))
+	headers := newHttpRequestHeader()
+	headers.Set("Index", strconv.Itoa(pubIdx))
 	req := &http.Request{
 		Host:   "www.88996644.com",
 		Method: "POST",
@@ -53,7 +53,7 @@ func (c *oneRtt) HandShake(conn net.Conn) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	pubSIdx, err := strconv.Atoi(resp.Header.Get("index"))
+	pubSIdx, err := strconv.Atoi(resp.Header.Get("Index"))
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func (c *oneRtt) HandleHandShake(conn net.Conn) (net.Conn, error) {
 		return nil, common.NewError("not a http request")
 	}
 	_, entropy, _ := strings.Cut(req.URL.String(), "=")
-	pubCIdx, err := strconv.Atoi(req.Header.Get("index"))
+	pubCIdx, err := strconv.Atoi(req.Header.Get("Index"))
 	if err != nil {
 		afterHttpErr(conn)
 		return nil, err
@@ -140,8 +140,8 @@ func (c *oneRtt) HandleHandShake(conn net.Conn) (net.Conn, error) {
 	sig := ed25519.Sign(c.PrivateKey, H)
 	copy(nonceData[pubSIdx:pubSIdx+ephPubKeyLen], ephPub[:])
 	copy(nonceData[pubSIdx+ephPubKeyLen:pubSIdx+ephPubKeyLen+sigLen], sig)
-	headers := make(http.Header)
-	headers.Set("index", strconv.Itoa(pubSIdx))
+	headers := newHttpResponseHeader()
+	headers.Set("Index", strconv.Itoa(pubSIdx))
 	resp := &http.Response{
 		StatusCode:    200,
 		Header:        headers,
@@ -179,4 +179,22 @@ func afterHttpErr(conn net.Conn) {
 		Body:       io.NopCloser(bytes.NewReader([]byte("404 not found"))),
 	}
 	resp.Write(conn)
+}
+
+func newHttpRequestHeader() http.Header {
+	h := make(http.Header)
+	h.Set("Accept-Encoding", "gzip, deflate")
+	h.Set("Connection", "keep-alive")
+	h.Set("Pragma", "no-cache")
+	h.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36")
+	return h
+}
+
+func newHttpResponseHeader() http.Header {
+	h := make(http.Header)
+	h.Set("Content-Type", "application/octet-stream")
+	h.Set("Transfer-Encoding", "chunked")
+	h.Set("Connection", "keep-alive")
+	h.Set("Pragma", "no-cache")
+	return h
 }

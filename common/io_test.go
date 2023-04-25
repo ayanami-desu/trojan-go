@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"crypto/rand"
 	"testing"
-
-	"github.com/v2fly/v2ray-core/v4/common"
 )
 
 func TestBufferedReader(t *testing.T) {
@@ -18,20 +16,20 @@ func TestBufferedReader(t *testing.T) {
 	r.SetBufferSize(2048)
 	buf1 := make([]byte, 512)
 	buf2 := make([]byte, 512)
-	common.Must2(r.Read(buf1))
+	Must2(r.Read(buf1))
 	r.Rewind()
-	common.Must2(r.Read(buf2))
+	Must2(r.Read(buf2))
 	if !bytes.Equal(buf1, buf2) {
 		t.Fail()
 	}
 	buf3 := make([]byte, 512)
-	common.Must2(r.Read(buf3))
+	Must2(r.Read(buf3))
 	if !bytes.Equal(buf3, payload[512:]) {
 		t.Fail()
 	}
 	r.Rewind()
 	buf4 := make([]byte, 1024)
-	common.Must2(r.Read(buf4))
+	Must2(r.Read(buf4))
 	if !bytes.Equal(payload[:], buf4) {
 		t.Fail()
 	}

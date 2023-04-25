@@ -41,7 +41,7 @@ func (s *Server) acceptLoop() {
 			}
 			return
 		}
-		log.Infof("tcp connection from %v", tcpConn.RemoteAddr())
+		log.Debugf("tcp connection from %v", tcpConn.RemoteAddr())
 		s.connChan <- &Conn{
 			Conn: tcpConn,
 		}

@@ -66,7 +66,7 @@ type Address struct {
 	DomainName  string
 	Port        int
 	NetworkType string
-	net.IP
+	IP          net.IP
 	AddressType
 }
 

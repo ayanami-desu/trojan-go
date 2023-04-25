@@ -90,7 +90,7 @@ func (s *Server) handshake(conn net.Conn) (*Conn, error) {
 	if err := addr.ReadFrom(conn); err != nil {
 		return nil, err
 	}
-
+	addr.NetworkType = "tcp"
 	return &Conn{
 		metadata: &tunnel.Metadata{
 			Command: tunnel.Command(buf[1]),

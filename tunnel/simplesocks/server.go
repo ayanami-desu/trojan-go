@@ -5,6 +5,7 @@ import (
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/tunnel"
 	"github.com/p4gefau1t/trojan-go/tunnel/http2"
+	"github.com/p4gefau1t/trojan-go/tunnel/singmux"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -84,7 +85,9 @@ func (s *Server) AcceptPacket(tunnel.Tunnel) (tunnel.PacketConn, error) {
 
 func NewServer(ctx context.Context, underlay tunnel.Server) (*Server, error) {
 	ctx, cancel := context.WithCancel(ctx)
-	_, ok := underlay.(*http2.Server)
+	_, ok1 := underlay.(*http2.Server)
+	_, ok2 := underlay.(*singmux.Server)
+	ok := ok1 || ok2
 	server := &Server{
 		underlay:     underlay,
 		readMetadata: !ok,

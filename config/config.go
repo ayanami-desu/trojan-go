@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"github.com/tailscale/hujson"
 
 	"gopkg.in/yaml.v3"
 )
@@ -19,10 +20,16 @@ func RegisterConfigCreator(name string, creator Creator) {
 }
 
 func parseJSON(data []byte) (map[string]interface{}, error) {
+	ast, err := hujson.Parse(data)
+	if err != nil {
+		return nil, err
+	}
+	ast.Standardize()
+	_data := ast.Pack()
 	result := make(map[string]interface{})
 	for name, creator := range creators {
 		config := creator()
-		if err := json.Unmarshal(data, config); err != nil {
+		if err := json.Unmarshal(_data, config); err != nil {
 			return nil, err
 		}
 		result[name] = config

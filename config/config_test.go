@@ -31,8 +31,12 @@ func TestJSONConfig(t *testing.T) {
 		"field3": [
 			{
 				"field1": "aaaa",
-				"field2": true
+				"field2": true,
+				//test
 			}
+				/* happy new year 
+					one
+				*/
 		]
 	}
 	`)
