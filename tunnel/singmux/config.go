@@ -8,10 +8,11 @@ type MuxConfig struct {
 	MinStreams     int    `json:"min_streams" yaml:"min-streams"`
 	MaxStreams     int    `json:"max_streams" yaml:"max-streams"`
 	Padding        bool   `json:"padding" yaml:"padding"`
+	ResetTimeout   int    `json:"reset_timeout" yaml:"reset-timeout"`
 }
 
 type Config struct {
-	Mux MuxConfig `json:"singmux" yaml:"sing-mux"`
+	Mux MuxConfig `json:"sing_mux" yaml:"sing-mux"`
 }
 
 func init() {

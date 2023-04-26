@@ -7,6 +7,7 @@ import (
 	"github.com/p4gefau1t/trojan-go/tunnel"
 	smux "github.com/sagernet/sing-mux"
 	log "github.com/sirupsen/logrus"
+	"time"
 )
 
 const (
@@ -15,10 +16,25 @@ const (
 )
 
 type Client struct {
-	singClient *smux.Client
-	underlay   tunnel.Client
-	ctx        context.Context
-	cancel     context.CancelFunc
+	singClient    *smux.Client
+	checkDuration time.Duration
+	underlay      tunnel.Client
+	ctx           context.Context
+	cancel        context.CancelFunc
+}
+
+func (c *Client) cleanLoop() {
+	log.Debugf("start sing-mux clean loop: %v min timeout", c.checkDuration.Minutes())
+	for {
+		select {
+		case <-time.After(c.checkDuration):
+			c.singClient.Reset()
+			log.Debug("reset all sing-mux session")
+		case <-c.ctx.Done():
+			log.Debug("shutting down sing-mux cleaner...")
+			return
+		}
+	}
 }
 
 func (c *Client) DialConn(addr *tunnel.Address, _ tunnel.Tunnel) (tunnel.Conn, error) {
@@ -63,10 +79,16 @@ func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
 	common.Must(err)
 	ctx, cancel := context.WithCancel(ctx)
 	client := &Client{
-		singClient: sc,
-		underlay:   underlay,
-		ctx:        ctx,
-		cancel:     cancel,
+		singClient:    sc,
+		checkDuration: time.Duration(cfg.Mux.ResetTimeout) * 60 * time.Second,
+		underlay:      underlay,
+		ctx:           ctx,
+		cancel:        cancel,
+	}
+	if cfg.Mux.ResetTimeout >= 5 {
+		go client.cleanLoop()
+	} else {
+		log.Warnf("session reset timeout %d min is too short", cfg.Mux.ResetTimeout)
 	}
 	log.Debugf("sing-mux of %s client created", cfg.Mux.Protocol)
 	return client, nil
