@@ -13,8 +13,8 @@ os="linux"
 arch="amd64"
 CGO_ENABLED=0 gox -tags "server" -ldflags="-s -w -buildid=" -os="$os" -arch="$arch" -output="$output-server"
 
-os="windows linux"
-arch="amd64 arm64"
+os="linux"
+arch="arm64"
 CGO_ENABLED=0 gox -tags "client" -ldflags="-s -w -buildid=" -os="$os" -arch="$arch" -output="$output-client"
 
 mv trojan-go-* ./build

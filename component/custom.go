@@ -8,7 +8,6 @@ import (
 	_ "github.com/p4gefau1t/trojan-go/tunnel/adapter"
 	_ "github.com/p4gefau1t/trojan-go/tunnel/freedom"
 	_ "github.com/p4gefau1t/trojan-go/tunnel/http2"
-	_ "github.com/p4gefau1t/trojan-go/tunnel/multiplex"
 	_ "github.com/p4gefau1t/trojan-go/tunnel/mux"
 	_ "github.com/p4gefau1t/trojan-go/tunnel/simplesocks"
 	_ "github.com/p4gefau1t/trojan-go/tunnel/socks"

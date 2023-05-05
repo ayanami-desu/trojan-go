@@ -14,7 +14,7 @@ import (
 func TestMux(t *testing.T) {
 	muxCfg := &Config{
 		Mux: MuxConfig{
-			Concurrency: 8,
+			MaxStreams:  8,
 			IdleTimeout: 60,
 		},
 	}

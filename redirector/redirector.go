@@ -17,7 +17,7 @@ func defaultDial(addr net.Addr) (net.Conn, error) {
 }
 
 type Redirection struct {
-	Dial
+	Dial        Dial
 	RedirectTo  net.Addr
 	InboundConn net.Conn
 }
@@ -53,7 +53,7 @@ func (r *Redirector) worker() {
 				if redirection.Dial == nil {
 					redirection.Dial = defaultDial
 				}
-				log.Warn("redirecting connection from", redirection.InboundConn.RemoteAddr(), "to", redirection.RedirectTo.String())
+				log.Warnf("redirecting connection from %v to %v", redirection.InboundConn.RemoteAddr(), redirection.RedirectTo.String())
 				outboundConn, err := redirection.Dial(redirection.RedirectTo)
 				if err != nil {
 					log.Error(common.NewError("failed to redirect to target address").Base(err))

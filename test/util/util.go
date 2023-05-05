@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"crypto/rand"
 	"fmt"
-	"github.com/p4gefau1t/trojan-go/common"
-	"io"
 	"net"
 	"sync"
+
+	"github.com/p4gefau1t/trojan-go/common"
 )
 
 // CheckConn checks if two netConn were connected and work properly
@@ -101,20 +101,4 @@ func CheckPacket(a, b net.PacketConn) bool {
 func GetTestAddr() string {
 	port := common.PickPort("tcp", "127.0.0.1")
 	return fmt.Sprintf("127.0.0.1:%d", port)
-}
-
-func GeneratePayload(length int) []byte {
-	buf := make([]byte, length)
-	io.ReadFull(rand.Reader, buf)
-	return buf
-}
-
-var (
-	EchoAddr string
-	EchoPort int
-)
-
-func init() {
-	EchoPort = common.PickPort("tcp", "127.0.0.1")
-	EchoAddr = fmt.Sprintf("127.0.0.1:%d", EchoPort)
 }

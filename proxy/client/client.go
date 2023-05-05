@@ -30,12 +30,13 @@ func GenerateClientTree(ctx context.Context) []string {
 		s = mux.Name
 	case "sing-mux":
 		s = singmux.Name
+	case "nil":
+		s = "nil"
 	default:
-		s = ""
-		log.Warnf("unknown mux type: %s", cfg.MuxType)
+		log.Fatalf("unknown mux type: %s", cfg.MuxType)
 	}
 	clientStack = append(clientStack, ssh.Name)
-	if s != "" {
+	if s != "nil" {
 		clientStack = append(clientStack, s)
 	}
 	clientStack = append(clientStack, simplesocks.Name)

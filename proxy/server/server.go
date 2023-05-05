@@ -45,11 +45,12 @@ func init() {
 			s = mux.Name
 		case "sing-mux":
 			s = singmux.Name
+		case "nil":
+			s = "nil"
 		default:
-			s = ""
-			log.Warnf("unknown mux type: %s", cfg.MuxType)
+			log.Fatalf("unknown mux type: %s", cfg.MuxType)
 		}
-		if s != "" {
+		if s != "nil" {
 			root.BuildNext(ssh.Name).BuildNext(s).BuildNext(simplesocks.Name).IsEndpoint = true
 		} else {
 			root.BuildNext(ssh.Name).BuildNext(simplesocks.Name).IsEndpoint = true
